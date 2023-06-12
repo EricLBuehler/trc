@@ -1,6 +1,6 @@
 use std::thread;
 
-use crate::trc::Trc;
+use crate::{trc::Trc, Weak};
 
 struct Data {
     string: String,
@@ -55,6 +55,32 @@ fn test_multithread2() {
     let handle = thread::spawn(move || {
         println!("{:?}", *trc2);
         *trc2 = 200;
+    });
+    handle.join().unwrap();
+    println!("{}", *trc);
+    assert_eq!(*trc, 200);
+}
+
+#[test]
+fn test_weak() {
+    let trc = Trc::new(100);
+    let weak = Weak::from_trc(&trc);
+    let mut new_trc = Weak::to_trc(&weak).unwrap();
+    println!("Deref test! {}", *new_trc);
+    println!("DerefMut test");
+    *new_trc = 200;
+    println!("Deref test! {}", *new_trc);
+}
+
+#[test]
+fn test_multithread_weak() {
+    let trc = Trc::new(100);
+    let weak = Weak::from_trc(&trc);
+
+    let handle = thread::spawn(move || {
+        let mut trc = Weak::to_trc(&weak).unwrap();
+        println!("{:?}", *trc);
+        *trc = 200;
     });
     handle.join().unwrap();
     println!("{}", *trc);

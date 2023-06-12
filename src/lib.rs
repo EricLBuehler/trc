@@ -9,6 +9,7 @@
 
 pub mod trc;
 pub use crate::trc::Trc;
+pub use crate::trc::Weak;
 
 #[cfg(test)]
 mod tests;
