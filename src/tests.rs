@@ -1,5 +1,4 @@
-
-use std::{thread};
+use std::thread;
 
 use crate::trc::Trc;
 

@@ -28,10 +28,10 @@ struct LocalThreadTrc<T> {
 
 /// `Trc` is a smart pointer for sharing data across threads is a thread-safe manner without putting locks on the data.
 /// `Trc` stands for: Thread Reference Counted
-/// It impkements biased reference counting, which is based on the observation that most objects are only used by one thread.
+/// It implements biased reference counting, which is based on the observation that most objects are only used by one thread.
 /// This means that two refernce counts can be created: one for thread-local use, and one atomic one (with a lock) for sharing.
 /// This implementation of biased reference counting sets the atomic reference count to the number of threads using the data.
-/// 
+///
 /// When a `Trc` is dropped, then the thread-local reference count is decremented. If it is zero, the atomic reference count is also decremented.
 /// If the atomic reference count is zero, then the internal data is dropped. Regardless of wherether the atomic refernce count is zero, the
 /// local `Trc` is dropped.
