@@ -29,7 +29,7 @@ fn test_multithread1() {
     };
 
     let thread_trc_main = Trc::new(data);
-    let mut thread_trc_thread = thread_trc_main.clone_across_thread();
+    let mut thread_trc_thread = Trc::clone_across_thread(&thread_trc_main);
     let handle = thread::spawn(move || {
         println!("Thread1 Deref test! {}", thread_trc_thread.int);
         println!("DerefMut test");
@@ -50,7 +50,7 @@ fn test_multithread1() {
 #[test]
 fn test_multithread2() {
     let trc = Trc::new(100);
-    let mut trc2 = trc.clone_across_thread();
+    let mut trc2 = Trc::clone_across_thread(&trc);
 
     let handle = thread::spawn(move || {
         println!("{:?}", *trc2);
