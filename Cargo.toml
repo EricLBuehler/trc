@@ -8,7 +8,7 @@ author = ["Eric Buehler"]
 description = "A smart pointer that implements biased reference counting to outperform Arc and allow thread-safety."
 homepage = "https://github.com/EricLBuehler/trc"
 repository = "https://github.com/EricLBuehler/trc"
-keywords = ["reference counted", "thread safe", "smart pointer", "memory"]
+keywords = ["reference-counted", "thread-safe", "smart-pointer", "memory"]
 categories = ["memory-management"]
 
 [dependencies]
