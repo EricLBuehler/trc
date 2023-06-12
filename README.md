@@ -8,7 +8,7 @@ This means that two reference counts can be created: one for thread-local use, a
 This implementation of biased reference counting sets the atomic reference count to the number of threads using the data.
 The type parameter for `Trc<T>`, `T`, is `?Sized`. This allows `Trc<T>` to be used as a wrapper over trait objects, as `Trc<T>` itself is sized.
 
-# Clone behavior
+## Clone behavior
 When a `Trc<T>` is cloned, it's internal (wrapped) data stays at the same memory location, but a new `Trc<T>` is constructed and returned.
 This makes a `clone` a relatively inexpensive operation because only a wrapper is constructed.
 This new `Trc<T>` points to the same memory, and all `Trc<T>`s that point to that memory in that thread will have their thread-local reference counts incremented
@@ -18,13 +18,13 @@ For use of threads, `Trc<T>` has a `clone_across_thread` method. This is relativ
 is most likely something that will not be done in loop.
 `clone_across_thread` increments the atomic reference count - that is, the reference count that tells how many threads are using the object.
 
-# Drop behavior
+## Drop behavior
 
 When a `Trc<T>` is dropped the thread-local reference count is decremented. If it is zero, the atomic reference count is also decremented.
 If the atomic reference count is zero, then the internal data is dropped. Regardless of wherether the atomic refernce count is zero, the
 local `Trc<T>` is dropped.
 
-# [`Deref`] and [`DerefMut`] behavior
+## `Deref` and `DerefMut` behavior
 For ease of developer use, `Trc<T>` comes with [`Deref`] and [`DerefMut`] implemented to allow internal mutation.
 `Trc<T>` automatically dereferences to `&T` or `&mut T`. This allows method calls and member acess of `T`.
 To prevent name clashes, `Trc<T>`'s functions are associated. Traits like [`Clone`], [`Deref`] and [`DerefMut`] can still be called using their respective methods.
