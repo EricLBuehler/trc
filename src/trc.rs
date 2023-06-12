@@ -4,7 +4,7 @@
 use std::{
     borrow::{Borrow, BorrowMut},
     ops::{Deref, DerefMut},
-    ptr::NonNull,
+    ptr::NonNull, pin::Pin, fmt::{Display, Debug, Pointer},
 };
 
 #[cfg(not(target_has_atomic = "ptr"))]
@@ -352,6 +352,12 @@ impl<T> Trc<T> {
     pub fn as_ptr(this: &Self) -> *mut SharedTrcData<T> {
         return this.inner().shareddata.as_ptr();
     }
+
+    /// Creates a new `Pin<Trc<T>>`. If `T` does not implement [`Unpin`], then the data will be pinned in memory and unable to be moved.
+    #[inline]
+    pub fn pin(data: T) -> Pin<Trc<T>> {
+        return unsafe {Pin::new_unchecked(Trc::new(data))};
+    }
 }
 
 impl<T: ?Sized> Trc<T> {
@@ -525,6 +531,43 @@ impl<T> Borrow<T> for Trc<T> {
 impl<T> BorrowMut<T> for Trc<T> {
     fn borrow_mut(&mut self) -> &mut T {
         self.as_mut()
+    }
+}
+
+impl<T: ?Sized + Default> Default for Trc<T> {
+    fn default() -> Self {
+        return Trc::new(Default::default());
+    }
+}
+
+impl<T: Display> Display for Trc<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt((*self).deref(), f)
+    }
+}
+
+impl<T: Debug> Debug for Trc<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt((*self).deref(), f)
+    }
+}
+
+impl<T: Pointer> Pointer for Trc<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Pointer::fmt((*self).deref(), f)
+    }
+}
+
+impl<T> From<T> for Trc<T> {
+    /// Create a new `Trc<T>` fromt the specified data. This is equivalent to calling `Trc::new` on the same data.
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let trc = Trc::from(100);
+    /// assert_eq!(*trc, 100);
+    /// ```
+    fn from(value: T) -> Self {
+        return Self::new(value);
     }
 }
 
