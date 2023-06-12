@@ -3,6 +3,7 @@ name = "trc"
 version = "0.1.3"
 edition = "2021"
 license-file = "LICENSE"
+license = "MIT"
 readme = "README.md"
 author = ["Eric Buehler"]
 description = "A smart pointer that implements biased reference counting to outperform Arc and allow thread-safety."

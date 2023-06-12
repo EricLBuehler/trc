@@ -25,9 +25,9 @@ If the atomic reference count is zero, then the internal data is dropped. Regard
 local `Trc<T>` is dropped.
 
 ## `Deref` and `DerefMut` behavior
-For ease of developer use, `Trc<T>` comes with [`Deref`] and [`DerefMut`] implemented to allow internal mutation.
+For ease of developer use, `Trc<T>` comes with `Deref` and `DerefMut` implemented to allow internal mutation.
 `Trc<T>` automatically dereferences to `&T` or `&mut T`. This allows method calls and member acess of `T`.
-To prevent name clashes, `Trc<T>`'s functions are associated. Traits like [`Clone`], [`Deref`] and [`DerefMut`] can still be called using their respective methods.
+To prevent name clashes, `Trc<T>`'s functions are associated.
 
 # Examples
 
