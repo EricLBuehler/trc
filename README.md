@@ -32,7 +32,7 @@ To prevent name clashes, `Trc<T>`'s functions are associated. Traits like [`Clon
 # Examples
 
 Example in a single thread:
-```
+```rust
 use trc::Trc;
 
 let mut trc = Trc::new(100);
@@ -42,7 +42,7 @@ assert_eq!(*trc, 200);
 ```
 
 Example with multiple threads:
-```
+```rust
 use std::thread;
 use trc::Trc;
 
