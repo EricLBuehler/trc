@@ -40,15 +40,17 @@ struct LocalThreadTrc<T> {
 ///
 /// Example in a single thread:
 /// ```
-/// let trc = Trc::new(100);
-/// println!("{}", trc);
+/// use trc::Trc;
+/// let mut trc = Trc::new(100);
+/// println!("{}", *trc);
 /// *trc = 200;
-/// println!("{}", trc);
+/// println!("{}", *trc);
 /// ```
 ///
 /// Example with multiple threads:
 /// ```
 /// use std::thread;
+/// use trc::Trc;
 ///
 /// let trc = Trc::new(100);
 /// let mut trc2 = trc.clone_across_thread();
@@ -71,13 +73,14 @@ pub struct Trc<T> {
 impl<T> Trc<T> {
     /// Creates a new `Trc` from the provided data.
     /// ```
+    /// use trc::Trc;
     /// let trc = Trc::new(100);
     /// ```
     #[inline]
     #[cfg(target_has_atomic = "ptr")]
     pub fn new(value: T) -> Self {
         let atomicthreadata = AtomicThreadTrc {
-            atomicref: AtomicUsize::new(0),
+            atomicref: AtomicUsize::new(1),
             data: value,
         };
 
@@ -97,13 +100,14 @@ impl<T> Trc<T> {
 
     /// Creates a new `Trc` from the provided data.
     /// ```
+    /// use trc::Trc;
     /// let trc = Trc::new(100);
     /// ```
     #[inline]
     #[cfg(not(target_has_atomic = "ptr"))]
     pub fn new(value: T) -> Self {
         let atomicthreadata = AtomicThreadTrc {
-            atomicref: RwLock::new(0),
+            atomicref: RwLock::new(1),
             data: value,
         };
 
@@ -123,16 +127,19 @@ impl<T> Trc<T> {
 
     /// Return the local thread count of the object. This is how many `Trc`s are using the data referenced by this `Trc`.
     /// ```
+    /// use trc::Trc;
     /// let trc = Trc::new(100);
-    /// assert!(Trc::thread_count(trc) == 1)
+    /// assert!(Trc::thread_count(&trc) == 1)
     /// ```
     #[inline]
     pub fn thread_count(this: &Self) -> usize {
         return this.inner().threadref;
     }
 
-    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc`./// ```
+    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc`.
+    /// ```
     /// use std::thread;
+    /// use trc::Trc;
     ///
     /// let trc = Trc::new(100);
     /// let mut trc2 = trc.clone_across_thread();
@@ -140,7 +147,7 @@ impl<T> Trc<T> {
     /// let handle = thread::spawn(move || {
     ///     println!("{}", *trc2);
     ///     *trc2 = 200;
-    ///     assert_eq!(Trc::atomic_count(&trc), 2);
+    ///     assert_eq!(Trc::atomic_count(&trc2), 2);
     /// });
     ///
     /// handle.join().unwrap();
@@ -162,6 +169,7 @@ impl<T> Trc<T> {
     /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc`.
     /// ```
     /// use std::thread;
+    /// use trc::Trc;
     ///
     /// let trc = Trc::new(100);
     /// let mut trc2 = trc.clone_across_thread();
@@ -169,7 +177,7 @@ impl<T> Trc<T> {
     /// let handle = thread::spawn(move || {
     ///     println!("{}", *trc2);
     ///     *trc2 = 200;
-    ///     assert_eq!(Trc::atomic_count(&trc), 2);
+    ///     assert_eq!(Trc::atomic_count(&trc2), 2);
     /// });
     ///
     /// handle.join().unwrap();
@@ -205,8 +213,9 @@ impl<T> Trc<T> {
         unsafe { &mut *(*self.data.as_ptr()).atomicref.as_ptr() }
     }
 
-    /// Clone a `Trc` across threads. This is necessary because otherwise the atomic reference count will not be incremented.
+    /// Clone a `Trc` across threads (increase it's atomic reference count). This is necessary because otherwise the atomic reference count will not be incremented.
     /// ```
+    /// use trc::Trc;
     /// let trc = Trc::new(100);
     /// let trc2 = trc.clone_across_thread();
     /// ```
@@ -236,6 +245,7 @@ impl<T> Trc<T> {
 
     /// Clone a `Trc` across threads (increase it's atomic reference count). This is necessary because otherwise the atomic reference count will not be incremented.
     /// ```
+    /// use trc::Trc;
     /// let trc = Trc::new(100);
     /// let trc2 = trc.clone_across_thread();
     /// ```
@@ -260,6 +270,7 @@ impl<T> Trc<T> {
 
     /// Checks if the other `Trc` is equal to this one according to their internal pointers.
     /// ```
+    /// use trc::Trc;
     /// let trc1 = Trc::new(100);
     /// let trc2 = trc1.clone();
     /// assert!(Trc::ptr_eq(&trc1, &trc2));
@@ -272,6 +283,7 @@ impl<T> Trc<T> {
     /// Gets the raw pointer to the most inner layer of `Trc`.
     /// The `AtomicThreadTrc` type only contains the data as its only public member.
     /// ```
+    /// use trc::Trc;
     /// let trc = Trc::new(100);
     /// println!("{}", Trc::as_ptr(&trc) as usize)
     /// ```
@@ -286,8 +298,10 @@ impl<T> Deref for Trc<T> {
 
     /// Get an immutable reference to the internal data.
     /// ```
+    /// use trc::Trc;
+    /// use std::ops::Deref;
     /// let mut trc = Trc::new(100);
-    /// println!("{}", trc);
+    /// println!("{}", *trc);
     /// let refr = trc.deref();
     /// println!("{}", refr);
     /// ```
@@ -300,6 +314,8 @@ impl<T> Deref for Trc<T> {
 impl<T> DerefMut for Trc<T> {
     /// Get a &mut reference to the internal data.
     /// ```
+    /// use trc::Trc;
+    /// use std::ops::DerefMut;
     /// let mut trc = Trc::new(100);
     /// *trc = 200;
     /// let mutref = trc.deref_mut();
@@ -356,6 +372,7 @@ impl<T> Drop for Trc<T> {
 impl<T> Clone for Trc<T> {
     /// Clone a `Trc` (increase it's local reference count). This can only be used to clone an object that will only stay in one thread.
     /// ```
+    /// use trc::Trc;
     /// let trc = Trc::new(100);
     /// let trc2 = trc.clone();
     /// ```
