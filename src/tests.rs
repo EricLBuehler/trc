@@ -104,3 +104,11 @@ fn test_dyn() {
     let vehicle = Trc::new(Box::new(Truck));
     vehicle.drive();
 }
+
+#[test]
+fn test_weak_drop() {
+    let trc = Trc::new(100);
+    let weak = Weak::from_trc(&trc);
+    drop(trc);
+    assert!(Weak::to_trc(&weak).is_none())
+}

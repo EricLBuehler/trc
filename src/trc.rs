@@ -481,13 +481,6 @@ impl<T> Drop for Trc<T> {
                     > 0
                 {
                     unsafe { std::ptr::drop_in_place(&mut self.inner_shared_mut().data as *mut T) };
-                    let new = unsafe {
-                        NonNull::new_unchecked(std::mem::transmute_copy::<
-                            usize,
-                            *mut SharedTrcData<T>,
-                        >(&usize::MAX))
-                    };
-                    self.inner_mut().shareddata = new;
                 } else {
                     unsafe { Box::from_raw(self.inner().shareddata.as_ptr()) };
                     unsafe { Box::from_raw(self.data.as_ptr()) };
@@ -690,10 +683,6 @@ impl<T> Weak<T> {
     #[inline]
     #[cfg(not(target_has_atomic = "ptr"))]
     pub fn to_trc(this: &Self) -> Weak<T> {
-        if this.data.as_ptr() as usize == usize::MAX {
-            return None;
-        }
-
         let mut writelock = unsafe { this.data.as_ref() }.weakcount.try_write();
 
         while writelock.is_err() {
@@ -701,6 +690,10 @@ impl<T> Weak<T> {
         }
         let mut writedata = writelock.unwrap();
 
+        if *writedata == 0{
+            return None;
+        }
+        
         *writedata -= 1;
 
         let mut writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
@@ -741,9 +734,12 @@ impl<T> Weak<T> {
     #[inline]
     #[cfg(target_has_atomic = "ptr")]
     pub fn to_trc(this: &Self) -> Option<Trc<T>> {
-        if this.data.as_ptr() as usize == usize::MAX {
+        if unsafe { this.data.as_ref() }
+        .atomicref
+        .load(std::sync::atomic::Ordering::Acquire) == 0{
             return None;
         }
+
         unsafe { this.data.as_ref() }
             .weakcount
             .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);

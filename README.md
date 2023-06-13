@@ -1,6 +1,9 @@
 # Trc
+![rustc 1.70.0 stable](https://img.shields.io/badge/rustc-1.70.0-brightgreen)
+[![MIT License](https://img.shields.io/badge/License-MIT-informational)](LICENSE)
 ![Build status](https://github.com/EricLBuehler/trc/actions/workflows/build.yml/badge.svg)
 ![Docs status](https://github.com/EricLBuehler/trc/actions/workflows/docs.yml/badge.svg)
+![Tests status](https://github.com/EricLBuehler/trc/actions/workflows/tests.yml/badge.svg)
 
 Trc is a biased reference-counted smart pointer for Rust that allows for interior mutability.
 `Trc<T>` is a heap-allocated smart pointer for sharing data across threads is a thread-safe manner without putting locks on the data.
