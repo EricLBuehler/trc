@@ -87,13 +87,12 @@ fn test_multithread_weak() {
     assert_eq!(*trc, 200);
 }
 
-trait Vehicle {
-    fn drive(&self);
-}
-
-
 #[test]
 fn test_dyn() {
+    trait Vehicle {
+        fn drive(&self);
+    }
+    
     struct Truck;
 
     impl Vehicle for Truck {
