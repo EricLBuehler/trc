@@ -1,4 +1,4 @@
-use std::thread;
+use std::{thread};
 
 use crate::{trc::Trc, Weak};
 
@@ -85,4 +85,23 @@ fn test_multithread_weak() {
     handle.join().unwrap();
     println!("{}", *trc);
     assert_eq!(*trc, 200);
+}
+
+trait Vehicle {
+    fn drive(&self);
+}
+
+
+#[test]
+fn test_dyn() {
+    struct Truck;
+
+    impl Vehicle for Truck {
+        fn drive(&self) {
+            println!("Truck is driving");
+        }
+    }
+    
+    let vehicle = Trc::new(Box::new(Truck));
+    vehicle.drive();
 }

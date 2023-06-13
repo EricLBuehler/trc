@@ -13,7 +13,7 @@ use std::sync::RwLock;
 #[cfg(target_has_atomic = "ptr")]
 use std::sync::atomic::AtomicUsize;
 
-pub struct SharedTrcData<T: ?Sized> {
+pub struct SharedTrcData<T> {
     #[cfg(not(target_has_atomic = "ptr"))]
     atomicref: RwLock<usize>,
     #[cfg(target_has_atomic = "ptr")]
@@ -25,7 +25,7 @@ pub struct SharedTrcData<T: ?Sized> {
     pub data: T,
 }
 
-struct LocalThreadTrcData<T: ?Sized> {
+struct LocalThreadTrcData<T> {
     shareddata: NonNull<SharedTrcData<T>>,
     threadref: usize,
 }
@@ -37,14 +37,14 @@ struct LocalThreadTrcData<T: ?Sized> {
 /// This means that two reference counts can be created: one for thread-local use, and one atomic one for sharing between threads.
 /// This implementation of biased reference counting sets the atomic reference count to the number of threads using the data.
 ///
-/// # Breaking reference cycles with `Weak<T>`
+/// ## Breaking reference cycles with `Weak<T>`
 /// A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
 /// A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.
 /// They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
 /// must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (whcih can be dropped), and only keeps the backing allocation alive.
 /// See [`Weak`] for more information.
 ///
-/// # Clone behavior
+/// ## Clone behavior
 /// When a `Trc<T>` is cloned, it's internal (wrapped) data stays at the same memory location, but a new `Trc<T>` is constructed and returned.
 /// This makes a `clone` a relatively inexpensive operation because only a wrapper is constructed.
 /// This new `Trc<T>` points to the same memory, and all `Trc<T>`s that point to that memory in that thread will have their thread-local reference counts incremented
@@ -54,18 +54,18 @@ struct LocalThreadTrcData<T: ?Sized> {
 /// is most likely something that will not be done in loop.
 /// `clone_across_thread` increments the atomic reference count - that is, the reference count that tells how many threads are using the object.
 ///
-/// # Drop behavior
+/// ## Drop behavior
 ///
 /// When a `Trc<T>` is dropped the thread-local reference count is decremented. If it is zero, the atomic reference count is also decremented.
 /// If the atomic reference count is zero, then the internal data is dropped. Regardless of wherether the atomic refernce count is zero, the
 /// local `Trc<T>` is dropped.
 ///
-/// # [`Deref`] and [`DerefMut`] behavior
+/// ## [`Deref`] and [`DerefMut`] behavior
 /// For ease of developer use, `Trc<T>` comes with [`Deref`] and [`DerefMut`] implemented to allow internal mutation.
 /// `Trc<T>` automatically dereferences to `&T` or `&mut T`. This allows method calls and member acess of `T`.
 /// To prevent name clashes, `Trc<T>`'s functions are associated.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// Example in a single thread:
 /// ```
@@ -94,7 +94,7 @@ struct LocalThreadTrcData<T: ?Sized> {
 /// ```
 ///
 #[derive(PartialEq, Eq)]
-pub struct Trc<T: ?Sized> {
+pub struct Trc<T> {
     data: NonNull<LocalThreadTrcData<T>>,
 }
 
@@ -360,7 +360,7 @@ impl<T> Trc<T> {
     }
 }
 
-impl<T: ?Sized> Trc<T> {
+impl<T> Trc<T> {
     #[inline]
     fn inner(&self) -> &LocalThreadTrcData<T> {
         return unsafe { self.data.as_ref() };
@@ -418,7 +418,7 @@ impl<T> DerefMut for Trc<T> {
     }
 }
 
-impl<T: ?Sized> Drop for Trc<T> {
+impl<T> Drop for Trc<T> {
     #[inline]
     #[cfg(not(target_has_atomic = "ptr"))]
     fn drop(&mut self) {
@@ -534,7 +534,7 @@ impl<T> BorrowMut<T> for Trc<T> {
     }
 }
 
-impl<T: ?Sized + Default> Default for Trc<T> {
+impl<T: Default> Default for Trc<T> {
     fn default() -> Self {
         return Trc::new(Default::default());
     }
@@ -571,8 +571,8 @@ impl<T> From<T> for Trc<T> {
     }
 }
 
-unsafe impl<T> Send for Trc<T> {}
-unsafe impl<T> Sync for Trc<T> {}
+unsafe impl<T: Sync + Send> Send for Trc<T> {}
+unsafe impl<T: Sync + Send> Sync for Trc<T> {}
 
 /// `Weak<T>` is a non-owning reference to `Trc<T>`'s data. It is used to prevent cyclic references which cause memory to never be freed.
 /// `Weak<T>` does not keep the value alive (which can be dropped), they only keep the backing allocation alive. `Weak<T>` cannot even directly access the memory,
@@ -617,7 +617,7 @@ unsafe impl<T> Sync for Trc<T> {}
 /// assert_eq!(*trc, 200);
 /// ```
 ///
-pub struct Weak<T: ?Sized> {
+pub struct Weak<T> {
     data: NonNull<SharedTrcData<T>>, //Use this data because it has the ptr
 }
 
@@ -758,7 +758,7 @@ impl<T> Weak<T> {
     }
 }
 
-impl<T: ?Sized> Clone for Weak<T> {
+impl<T> Clone for Weak<T> {
     /// Clone a `Weak<T>` (increment the weak count).
     /// ```
     /// use trc::Trc;
@@ -805,5 +805,5 @@ impl<T: ?Sized> Clone for Weak<T> {
     }
 }
 
-unsafe impl<T> Send for Weak<T> {}
-unsafe impl<T> Sync for Weak<T> {}
+unsafe impl<T: Sync + Send> Send for Weak<T> {}
+unsafe impl<T: Sync + Send> Sync for Weak<T> {}
