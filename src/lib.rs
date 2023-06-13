@@ -6,7 +6,6 @@
 //! It implements biased reference counting, which is based on the observation that most objects are only used by one thread.
 //! This means that two reference counts can be created: one for thread-local use, and one atomic one for sharing between threads.
 //! This implementation of biased reference counting sets the atomic reference count to the number of threads using the data.
-//! The type parameter for `Trc<T>`, `T`, is `?Sized`. This allows `Trc<T>` to be used as a wrapper over trait objects, as `Trc<T>` itself is sized.
 //!
 //! A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
 //! A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.

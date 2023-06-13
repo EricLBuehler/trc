@@ -64,6 +64,12 @@ struct LocalThreadTrcData<T> {
 /// For ease of developer use, `Trc<T>` comes with [`Deref`] and [`DerefMut`] implemented to allow internal mutation.
 /// `Trc<T>` automatically dereferences to `&T` or `&mut T`. This allows method calls and member acess of `T`.
 /// To prevent name clashes, `Trc<T>`'s functions are associated.
+/// 
+/// ## Footnote on `dyn` wrapping
+/// Rust's limitations mean that `Trc` will not be able to be used as a method reciever/trait object wrapper until
+/// CoerceUnsized, DispatchFromDyn, and Reciever (with arbitrary_self_types) are stablized.
+/// In addition, the internal structure of `Trc<T>` means that [`NonNull`] cannot be used as an indirection for CoerceUnsized due to it's
+/// internals (`*const T`), and so wrapping `dyn` types cannot be implemented. Howeover, one can use a [`Box`] as a wrapper and then wrap with `Trc<T>`.
 ///
 /// ## Examples
 ///
