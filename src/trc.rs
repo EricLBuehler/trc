@@ -238,8 +238,7 @@ impl<T> Trc<T> {
     /// let trc = Trc::new(100i32);
     /// let weak = Weak::from_trc(&trc);
     /// let weak2 = Weak::from_trc(&trc);
-    /// drop(trc);
-    /// let new_trc = Weak::to_trc(&weak).expect("The allocation is dead");
+    /// let new_trc = Weak::to_trc(&weak).expect("Value was dropped");
     /// drop(weak);
     /// assert_eq!(Trc::weak_count(&new_trc), 1);
     /// ```
@@ -262,8 +261,7 @@ impl<T> Trc<T> {
     /// let trc = Trc::new(100i32);
     /// let weak = Weak::from_trc(&trc);
     /// let weak2 = Weak::from_trc(&trc);
-    /// drop(trc);
-    /// let new_trc = Weak::to_trc(&weak).expect("The allocation is dead");
+    /// let new_trc = Weak::to_trc(&weak).expect("Value was dropped");
     /// drop(weak);
     /// assert_eq!(Trc::weak_count(&new_trc), 1);
     /// ```
@@ -675,7 +673,6 @@ impl<T> Weak<T> {
     ///
     /// let trc = Trc::new(100i32);
     /// let weak = Weak::from_trc(&trc);
-    /// drop(trc);
     /// let new_trc = Weak::to_trc(&weak).expect("Value was dropped");
     /// drop(weak);
     /// assert_eq!(*new_trc, 100i32);
@@ -693,7 +690,7 @@ impl<T> Weak<T> {
         if *writedata == 0{
             return None;
         }
-        
+
         *writedata -= 1;
 
         let mut writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
@@ -726,7 +723,6 @@ impl<T> Weak<T> {
     ///
     /// let trc = Trc::new(100i32);
     /// let weak = Weak::from_trc(&trc);
-    /// drop(trc);
     /// let new_trc = Weak::to_trc(&weak).expect("Value was dropped");
     /// drop(weak);
     /// assert_eq!(*new_trc, 100i32);
