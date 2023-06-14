@@ -1,4 +1,4 @@
-use std::{thread};
+use std::thread;
 
 use crate::{trc::Trc, Weak};
 
@@ -92,7 +92,7 @@ fn test_dyn() {
     trait Vehicle {
         fn drive(&self);
     }
-    
+
     struct Truck;
 
     impl Vehicle for Truck {
@@ -100,7 +100,7 @@ fn test_dyn() {
             println!("Truck is driving");
         }
     }
-    
+
     let vehicle = Trc::new(Box::new(Truck));
     vehicle.drive();
 }

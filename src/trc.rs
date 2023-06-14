@@ -1,30 +1,52 @@
 #![allow(dead_code)]
 #![allow(clippy::mut_from_ref)]
 
-
 use core::{
     borrow::{Borrow, BorrowMut},
+    fmt::{Debug, Display, Pointer},
     ops::{Deref, DerefMut},
-    ptr::NonNull, pin::Pin, fmt::{Display, Debug, Pointer},
+    pin::Pin,
+    ptr::NonNull,
 };
 
-#[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), all(feature = "test_lock", not(feature = "nostd"))))]
+#[cfg(any(
+    all(not(target_has_atomic = "ptr"), feature = "default"),
+    all(feature = "force_lock", not(feature = "nostd"))
+))]
 use std::sync::RwLock;
 
-#[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), all(feature = "test_lock", feature = "nostd")))]
+#[cfg(any(
+    all(not(target_has_atomic = "ptr"), feature = "default"),
+    all(feature = "force_lock", feature = "nostd")
+))]
 use spin::rwlock::RwLock;
 
-#[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+#[cfg(any(
+    all(target_has_atomic = "ptr", feature = "default"),
+    all(target_has_atomic = "ptr", feature = "force_atomic")
+))]
 use core::sync::atomic::AtomicUsize;
 
 pub struct SharedTrcData<T> {
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     atomicref: RwLock<usize>,
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     atomicref: AtomicUsize,
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     weakcount: RwLock<usize>,
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     weakcount: AtomicUsize,
     pub data: T,
 }
@@ -68,7 +90,7 @@ struct LocalThreadTrcData<T> {
 /// For ease of developer use, `Trc<T>` comes with [`Deref`] and [`DerefMut`] implemented to allow internal mutation.
 /// `Trc<T>` automatically dereferences to `&T` or `&mut T`. This allows method calls and member acess of `T`.
 /// To prevent name clashes, `Trc<T>`'s functions are associated.
-/// 
+///
 /// ## Footnote on `dyn` wrapping
 /// Rust's limitations mean that `Trc` will not be able to be used as a method reciever/trait object wrapper until
 /// CoerceUnsized, DispatchFromDyn, and Reciever (with arbitrary_self_types) are stablized.
@@ -117,7 +139,10 @@ impl<T> Trc<T> {
     /// assert_eq!(*trc, 100);
     /// ```
     #[inline]
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     pub fn new(value: T) -> Self {
         let shareddata = SharedTrcData {
             atomicref: AtomicUsize::new(1),
@@ -147,7 +172,10 @@ impl<T> Trc<T> {
     /// assert_eq!(*trc, 100);
     /// ```
     #[inline]
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     pub fn new(value: T) -> Self {
         let shareddata = SharedTrcData {
             atomicref: RwLock::new(1),
@@ -199,7 +227,10 @@ impl<T> Trc<T> {
     /// assert_eq!(*trc, 200);
     /// ```
     #[inline]
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     pub fn atomic_count(this: &Self) -> usize {
         let mut readlock = this.inner_shared().atomicref.try_read();
 
@@ -236,7 +267,10 @@ impl<T> Trc<T> {
     /// assert_eq!(*trc, 200);
     /// ```
     #[inline]
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     pub fn atomic_count(this: &Self) -> usize {
         this.inner_shared()
             .atomicref
@@ -256,7 +290,10 @@ impl<T> Trc<T> {
     /// assert_eq!(Trc::weak_count(&new_trc), 1);
     /// ```
     #[inline]
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     pub fn weak_count(this: &Self) -> usize {
         let mut readlock = this.inner_shared().weakcount.try_read();
 
@@ -288,7 +325,10 @@ impl<T> Trc<T> {
     /// assert_eq!(Trc::weak_count(&new_trc), 1);
     /// ```
     #[inline]
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     pub fn weak_count(this: &Self) -> usize {
         this.inner_shared()
             .weakcount
@@ -304,7 +344,10 @@ impl<T> Trc<T> {
     /// assert_eq!(Trc::atomic_count(&trc), Trc::atomic_count(&trc2));
     /// ```
     #[inline]
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     pub fn clone_across_thread(this: &Self) -> Self {
         let mut writelock = this.inner_shared().atomicref.try_write();
 
@@ -345,7 +388,10 @@ impl<T> Trc<T> {
     /// assert_eq!(Trc::atomic_count(&trc), Trc::atomic_count(&trc2));
     /// ```
     #[inline]
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     pub fn clone_across_thread(this: &Self) -> Self {
         this.inner_shared()
             .atomicref
@@ -391,7 +437,7 @@ impl<T> Trc<T> {
     /// Creates a new `Pin<Trc<T>>`. If `T` does not implement [`Unpin`], then the data will be pinned in memory and unable to be moved.
     #[inline]
     pub fn pin(data: T) -> Pin<Trc<T>> {
-        return unsafe {Pin::new_unchecked(Trc::new(data))};
+        unsafe { Pin::new_unchecked(Trc::new(data)) }
     }
 }
 
@@ -455,7 +501,10 @@ impl<T> DerefMut for Trc<T> {
 
 impl<T> Drop for Trc<T> {
     #[inline]
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     fn drop(&mut self) {
         self.inner_mut().threadref -= 1;
         if self.inner().threadref == 0 {
@@ -496,9 +545,7 @@ impl<T> Drop for Trc<T> {
                 }
                 let readdata = readlock.unwrap();
 
-                if *readdata
-                    > 0
-                {
+                if *readdata > 0 {
                     unsafe { std::ptr::drop_in_place(&mut self.inner_shared_mut().data as *mut T) };
                     let new = unsafe {
                         NonNull::new_unchecked(std::mem::transmute_copy::<
@@ -516,7 +563,10 @@ impl<T> Drop for Trc<T> {
     }
 
     #[inline]
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     fn drop(&mut self) {
         self.inner_mut().threadref -= 1;
         if self.inner().threadref == 0 {
@@ -586,7 +636,7 @@ impl<T> BorrowMut<T> for Trc<T> {
 
 impl<T: Default> Default for Trc<T> {
     fn default() -> Self {
-        return Trc::new(Default::default());
+        Trc::new(Default::default())
     }
 }
 
@@ -617,7 +667,7 @@ impl<T> From<T> for Trc<T> {
     /// assert_eq!(*trc, 100);
     /// ```
     fn from(value: T) -> Self {
-        return Self::new(value);
+        Self::new(value)
     }
 }
 
@@ -682,7 +732,10 @@ impl<T> Weak<T> {
     /// let weak = Weak::from_trc(&trc);
     /// ```
     #[inline]
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     pub fn from_trc(trc: &Trc<T>) -> Weak<T> {
         let mut writelock = trc.inner_shared().weakcount.try_write();
 
@@ -716,7 +769,10 @@ impl<T> Weak<T> {
     /// let weak = Weak::from_trc(&trc);
     /// ```
     #[inline]
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     pub fn from_trc(trc: &Trc<T>) -> Weak<T> {
         trc.inner_shared()
             .weakcount
@@ -740,7 +796,10 @@ impl<T> Weak<T> {
     /// assert_eq!(*new_trc, 100i32);
     /// ```
     #[inline]
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     pub fn to_trc(this: &Self) -> Option<Trc<T>> {
         let mut writelock = unsafe { this.data.as_ref() }.weakcount.try_write();
 
@@ -757,7 +816,7 @@ impl<T> Weak<T> {
             }
         }
         let mut writedata = writelock.unwrap();
-        
+
         *writedata -= 1;
 
         let mut writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
@@ -776,7 +835,7 @@ impl<T> Weak<T> {
         }
         let mut writedata = writelock.unwrap();
 
-        if *writedata == 0  {
+        if *writedata == 0 {
             return None;
         }
 
@@ -808,11 +867,16 @@ impl<T> Weak<T> {
     /// assert_eq!(*new_trc, 100i32);
     /// ```
     #[inline]
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     pub fn to_trc(this: &Self) -> Option<Trc<T>> {
         if unsafe { this.data.as_ref() }
-        .atomicref
-        .load(std::sync::atomic::Ordering::Acquire) == 0{
+            .atomicref
+            .load(std::sync::atomic::Ordering::Acquire)
+            == 0
+        {
             return None;
         }
 
@@ -848,7 +912,10 @@ impl<T> Clone for Weak<T> {
     /// assert_eq!(Trc::weak_count(&trc), 2);
     /// ```
     #[inline]
-    #[cfg(any(all(not(target_has_atomic = "ptr"), feature = "default"), feature = "test_lock"))]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
     fn clone(&self) -> Self {
         let mut writelock = unsafe { self.data.as_ref() }.weakcount.try_write();
         #[cfg(not(feature = "nostd"))]
@@ -881,7 +948,10 @@ impl<T> Clone for Weak<T> {
     /// assert_eq!(Trc::weak_count(&trc), 2);
     /// ```
     #[inline]
-    #[cfg(any(all(target_has_atomic = "ptr", feature = "default"), all(target_has_atomic = "ptr", feature = "test_atomic")))]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     fn clone(&self) -> Self {
         unsafe { self.data.as_ref() }
             .weakcount

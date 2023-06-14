@@ -1,6 +1,6 @@
 [package]
 name = "trc"
-version = "1.1.8"
+version = "1.1.9"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
@@ -17,6 +17,5 @@ spin = {version="0.9.8", optional = true}
 [features]
 default = []
 nostd = []
-test_atomic = []
-test_lock = ["spin/rwlock"]
-test_lock_nostd = ["spin/rwlock", "nostd", "test_lock"]
+force_atomic = []
+force_lock = ["spin/rwlock"]
