@@ -15,5 +15,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Tests
+    - name: Test lock (no std)
+      run: cargo test --features test_lock --no-default-features
+    - name: Test lock
+      run: cargo test --features test_lock_nostd --no-default-features
+    - name: Test atomic
+      run: cargo test --features test_atomic --no-default-features
+    - name: Test default
       run: cargo test
