@@ -691,6 +691,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// let trc2 = Trc::from(100);
     /// assert!(trc1>=trc2);
     /// ```
+    #[inline]
     fn ge(&self, other: &Self) -> bool {
         self.deref().ge(other.deref())
     }
@@ -705,6 +706,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// let trc2 = Trc::from(100);
     /// assert!(trc1<=trc2);
     /// ```
+    #[inline]
     fn le(&self, other: &Self) -> bool {
         self.deref().ge(other.deref())
     }
@@ -719,6 +721,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// let trc2 = Trc::from(100);
     /// assert!(trc1>trc2);
     /// ```
+    #[inline]
     fn gt(&self, other: &Self) -> bool {
         self.deref().gt(other.deref())
     }
@@ -733,6 +736,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// let trc2 = Trc::from(200);
     /// assert!(trc1<trc2);
     /// ```
+    #[inline]
     fn lt(&self, other: &Self) -> bool {
         self.deref().lt(other.deref())
     }
@@ -748,8 +752,9 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// let trc2 = Trc::from(200);
     /// assert_eq!(Some(Ordering::Less), trc1.partial_cmp(&trc2));
     /// ```
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.deref().partial_cmp(&other.deref())
+        self.deref().partial_cmp(other.deref())
     }
 }
 
@@ -780,6 +785,7 @@ impl<T: PartialEq> PartialEq for Trc<T> {
     /// let trc2 = Trc::from(100);
     /// assert!(trc1==trc2);
     /// ```
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.deref().eq(other.deref()) 
     }
@@ -794,6 +800,8 @@ impl<T: PartialEq> PartialEq for Trc<T> {
     /// let trc2 = Trc::from(200);
     /// assert!(trc1!=trc2);
     /// ```
+    #[allow(clippy::partialeq_ne_impl)]
+    #[inline]
     fn ne(&self, other: &Self) -> bool {
         self.deref().ne(other.deref()) 
     }
