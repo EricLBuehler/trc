@@ -1,4 +1,4 @@
-//! These docs are a work in progress. If you find any issues, I would greatly appreciate you submitting a pull request or issue to the [GitHub page](https://github.com/EricLBuehler/trc).
+//! If you find any issues with `Trc`, I would greatly appreciate you submitting a pull request or issue to the [GitHub page](https://github.com/EricLBuehler/trc).
 //!
 //! `Trc<T>` is a heap-allocated smart pointer for sharing data across threads is a thread-safe and performant manner.
 //! `Trc<T>` stands for: Thread Reference Counted.

@@ -7,6 +7,7 @@ use core::{
     ops::{Deref, DerefMut},
     pin::Pin,
     ptr::NonNull,
+    hash::{Hash, Hasher},
 };
 
 #[cfg(any(
@@ -125,7 +126,7 @@ struct LocalThreadTrcData<T> {
 /// assert_eq!(*trc, 200);
 /// ```
 ///
-#[derive(PartialEq, Eq)]
+#[derive(Eq)]
 pub struct Trc<T> {
     data: NonNull<LocalThreadTrcData<T>>,
 }
@@ -206,7 +207,7 @@ impl<T> Trc<T> {
     /// ```
     #[inline]
     pub fn local_refcount(this: &Self) -> usize {
-        return this.inner().threadref;
+        this.inner().threadref
     }
 
     /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc<T>`.
@@ -374,9 +375,9 @@ impl<T> Trc<T> {
 
         let tbx = Box::new(localldata);
 
-        return Trc {
+        Trc {
             data: NonNull::from(Box::leak(tbx)),
-        };
+        }
     }
 
     /// Clone a `Trc<T>` across threads (increment it's atomic reference count). This is very important to do because it prevents reference count race conditions, which lead to memory errors.
@@ -404,9 +405,9 @@ impl<T> Trc<T> {
 
         let tbx = Box::new(localldata);
 
-        return Trc {
+        Trc {
             data: NonNull::from(Box::leak(tbx)),
-        };
+        }
     }
 
     /// Checks if the other `Trc<T>` is equal to this one according to their internal pointers.
@@ -419,7 +420,7 @@ impl<T> Trc<T> {
     /// ```
     #[inline]
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        return this.inner().shareddata.as_ptr() == other.inner().shareddata.as_ptr();
+        this.inner().shareddata.as_ptr() == other.inner().shareddata.as_ptr()
     }
 
     /// Gets the raw pointer to the most inner layer of `Trc<T>`.
@@ -431,7 +432,7 @@ impl<T> Trc<T> {
     /// ```
     #[inline]
     pub fn as_ptr(this: &Self) -> *mut SharedTrcData<T> {
-        return this.inner().shareddata.as_ptr();
+        this.inner().shareddata.as_ptr()
     }
 
     /// Creates a new `Pin<Trc<T>>`. If `T` does not implement [`Unpin`], then the data will be pinned in memory and unable to be moved.
@@ -444,12 +445,12 @@ impl<T> Trc<T> {
 impl<T> Trc<T> {
     #[inline]
     fn inner(&self) -> &LocalThreadTrcData<T> {
-        return unsafe { self.data.as_ref() };
+        unsafe { self.data.as_ref() }
     }
 
     #[inline]
     fn inner_shared(&self) -> &SharedTrcData<T> {
-        return unsafe { self.data.as_ref().shareddata.as_ref() };
+        unsafe { self.data.as_ref().shareddata.as_ref() }
     }
 
     #[inline]
@@ -612,13 +613,13 @@ impl<T> Clone for Trc<T> {
 
 impl<T> AsRef<T> for Trc<T> {
     fn as_ref(&self) -> &T {
-        return Trc::deref(self);
+        Trc::deref(self)
     }
 }
 
 impl<T> AsMut<T> for Trc<T> {
     fn as_mut(&mut self) -> &mut T {
-        return Trc::deref_mut(self);
+        Trc::deref_mut(self)
     }
 }
 
@@ -659,7 +660,7 @@ impl<T: Pointer> Pointer for Trc<T> {
 }
 
 impl<T> From<T> for Trc<T> {
-    /// Create a new `Trc<T>` fromt the specified data. This is equivalent to calling `Trc::new` on the same data.
+    /// Create a new `Trc<T>` from the provided data. This is equivalent to calling `Trc::new` on the same data.
     /// ```
     /// use trc::Trc;
     ///
@@ -668,6 +669,133 @@ impl<T> From<T> for Trc<T> {
     /// ```
     fn from(value: T) -> Self {
         Self::new(value)
+    }
+}
+
+impl<T: Hash> Hash for Trc<T> {
+    /// Pass the data contained in this `Trc<T>` to the provided hasher.
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.deref().hash(state);
+    }
+}
+
+impl<T: PartialOrd> PartialOrd for Trc<T> {
+    /// "Greater than or equal to" comparison for two `Trc<T>`s. 
+    /// 
+    /// Calls `.partial_cmp` on the data.
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let trc1 = Trc::from(100);
+    /// let trc2 = Trc::from(100);
+    /// assert!(trc1>=trc2);
+    /// ```
+    fn ge(&self, other: &Self) -> bool {
+        self.deref().ge(other.deref())
+    }
+
+    /// "Less than or equal to" comparison for two `Trc<T>`s. 
+    /// 
+    /// Calls `.le` on the data.
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let trc1 = Trc::from(100);
+    /// let trc2 = Trc::from(100);
+    /// assert!(trc1<=trc2);
+    /// ```
+    fn le(&self, other: &Self) -> bool {
+        self.deref().ge(other.deref())
+    }
+
+    /// "Greater than" comparison for two `Trc<T>`s. 
+    /// 
+    /// Calls `.gt` on the data.
+    /// ```
+    /// use trc::Trc;
+    /// 
+    /// let trc1 = Trc::from(200);
+    /// let trc2 = Trc::from(100);
+    /// assert!(trc1>trc2);
+    /// ```
+    fn gt(&self, other: &Self) -> bool {
+        self.deref().gt(other.deref())
+    }
+
+    /// "Less than" comparison for two `Trc<T>`s. 
+    /// 
+    /// Calls `.lt` on the data.
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let trc1 = Trc::from(100);
+    /// let trc2 = Trc::from(200);
+    /// assert!(trc1<trc2);
+    /// ```
+    fn lt(&self, other: &Self) -> bool {
+        self.deref().lt(other.deref())
+    }
+
+    /// Partial comparison for two `Trc<T>`s. 
+    /// 
+    /// Calls `.partial_cmp` on the data.
+    /// ```
+    /// use trc::Trc;
+    /// use std::cmp::Ordering;
+    ///
+    /// let trc1 = Trc::from(100);
+    /// let trc2 = Trc::from(200);
+    /// assert_eq!(Some(Ordering::Less), trc1.partial_cmp(&trc2));
+    /// ```
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.deref().partial_cmp(&other.deref())
+    }
+}
+
+impl<T: Ord> Ord for Trc<T> {
+    /// Create a new `Trc<T>` from the provided data. This is equivalent to calling `Trc::new` on the same data.
+    /// ```
+    /// use trc::Trc;
+    /// use std::cmp::Ordering;
+    ///
+    /// let trc1 = Trc::from(100);
+    /// let trc2 = Trc::from(200);
+    /// assert_eq!(Ordering::Less, trc1.cmp(&trc2));
+    /// ```
+    #[inline]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.deref().cmp(other.deref())
+    }
+}
+
+impl<T: PartialEq> PartialEq for Trc<T> {
+    /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations. 
+    /// 
+    /// Calls `.eq` on the data.
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let trc1 = Trc::from(100);
+    /// let trc2 = Trc::from(100);
+    /// assert!(trc1==trc2);
+    /// ```
+    fn eq(&self, other: &Self) -> bool {
+        self.deref().eq(other.deref()) 
+    }
+
+    /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations. 
+    /// 
+    /// Calls `.ne` on the data.
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let trc1 = Trc::from(100);
+    /// let trc2 = Trc::from(200);
+    /// assert!(trc1!=trc2);
+    /// ```
+    fn ne(&self, other: &Self) -> bool {
+        self.deref().ne(other.deref()) 
     }
 }
 
@@ -754,9 +882,9 @@ impl<T> Weak<T> {
         let mut writedata = writelock.unwrap();
 
         *writedata += 1;
-        return Weak {
+        Weak {
             data: unsafe { trc.data.as_ref() }.shareddata,
-        };
+        }
     }
 
     /// Create a `Weak<T>` from a `Trc<T>`. This increments the weak count.
@@ -777,9 +905,9 @@ impl<T> Weak<T> {
         trc.inner_shared()
             .weakcount
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
-        return Weak {
+        Weak {
             data: unsafe { trc.data.as_ref() }.shareddata,
-        };
+        }
     }
 
     /// Create a `Trc<T>` from a `Weak<T>`. Because `Weak<T>` does not own the value, it might have been dropped already. If it has, a `None` is returned.
@@ -848,9 +976,9 @@ impl<T> Weak<T> {
 
         let tbx = Box::new(localldata);
 
-        return Some(Trc {
+        Some(Trc {
             data: NonNull::from(Box::leak(tbx)),
-        });
+        })
     }
 
     /// Create a `Trc<T>` from a `Weak<T>`. Because `Weak<T>` does not own the value, it might have been dropped already. If it has, a `None` is returned.
@@ -894,9 +1022,9 @@ impl<T> Weak<T> {
 
         let tbx = Box::new(localldata);
 
-        return Some(Trc {
+        Some(Trc {
             data: NonNull::from(Box::leak(tbx)),
-        });
+        })
     }
 }
 
