@@ -198,6 +198,125 @@ impl<T> Trc<T> {
         }
     }
 
+    /// Creates a new cyclic `Trc<T>` from the provided data. It allows the storage of `Weak<T>` which points the the allocation
+    /// of `Trc<T>`inside of `T`. Holding a `Trc<T>` inside of `T` would cause a memory leak. This method works around this by
+    /// providing a `Weak<T>` during the consturction of the `Trc<T>`, so that the `T` can store the `Weak<T>` internally.
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    /// 
+    /// struct T(Weak<T>);
+    /// 
+    /// let trc = Trc::new_cyclic(|x| T(x.clone()));
+    /// ```
+    #[inline]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
+    pub fn new_cyclic<F>(data_fn: F) -> Self 
+        where F: FnOnce(&Weak<T>) -> T
+    {
+        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrcData {
+            atomicref: AtomicUsize::new(0),
+            weakcount: AtomicUsize::new(0),
+            data: std::mem::MaybeUninit::<T>::uninit(),
+        })).into();
+
+        let init_ptr: NonNull<SharedTrcData<T>> = shareddata.cast();
+        
+        let weak: Weak<_> = Weak {data: init_ptr};
+
+        let data = data_fn(&weak);
+
+        unsafe {
+            let ptr = init_ptr.as_ptr();
+            std::ptr::write(std::ptr::addr_of_mut!((*ptr).data), data);
+            let prev = (*ptr)
+                .atomicref
+                .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+            debug_assert_eq!(prev, 0);
+        }
+
+        let localldata = LocalThreadTrcData {
+            shareddata: init_ptr,
+            threadref: 1,
+        };
+
+        let tbx = Box::new(localldata);
+
+        Trc {
+            data: NonNull::from(Box::leak(tbx)),
+        }
+    }
+
+    /// Creates a new cyclic `Trc<T>` from the provided data. It allows the storage of `Weak<T>` which points the the allocation
+    /// of `Trc<T>`inside of `T`. Holding a `Trc<T>` inside of `T` would cause a memory leak. This method works around this by
+    /// providing a `Weak<T>` during the consturction of the `Trc<T>`, so that the `T` can store the `Weak<T>` internally.
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    /// 
+    /// struct T(Weak<T>);
+    /// 
+    /// let trc = Trc::new_cyclic(|x| T(x.clone()));
+    /// ```
+    #[inline]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
+    pub fn new_cyclic<F>(data_fn: F) -> Self 
+        where F: FnOnce(&Weak<T>) -> T
+    {
+        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrcData {
+            atomicref: RwLock::new(0),
+            weakcount: RwLock::new(0),
+            data: std::mem::MaybeUninit::<T>::uninit(),
+        })).into();
+
+        let init_ptr: NonNull<SharedTrcData<T>> = shareddata.cast();
+        
+        let weak: Weak<_> = Weak {data: init_ptr};
+
+        let data = data_fn(&weak);
+
+        unsafe {
+            let ptr = init_ptr.as_ptr();
+            std::ptr::write(std::ptr::addr_of_mut!((*ptr).data), data);
+            let mut writelock = (*ptr).atomicref.try_write();
+
+            #[cfg(not(feature = "nostd"))]
+            {
+                while writelock.is_err() {
+                    writelock = (*ptr).atomicref.try_write();
+                }
+            }
+            #[cfg(feature = "nostd")]
+            {
+                while writelock.is_none() {
+                    writelock = (*ptr).atomicref.try_write();
+                }
+            }
+            let mut writedata = writelock.unwrap();
+
+            debug_assert_eq!(*writedata, 0);
+
+            *writedata += 1;
+        }
+
+        let localldata = LocalThreadTrcData {
+            shareddata: init_ptr,
+            threadref: 1,
+        };
+
+        let tbx = Box::new(localldata);
+
+        Trc {
+            data: NonNull::from(Box::leak(tbx)),
+        }
+    }
+
     /// Return the thread-local reference count of the object. This is how many `Trc<T>`s are using the data referenced by this `Trc<T>`.
     /// ```
     /// use trc::Trc;
