@@ -317,7 +317,7 @@ impl<T> Trc<T> {
         }
     }
 
-    /// Return the thread-local reference count of the object. This is how many `Trc<T>`s are using the data referenced by this `Trc<T>`.
+    /// Return the thread-local reference count of the object, which is how many `Trc<T>`s in this thread point to the data referenced by this `Trc<T>`.
     /// ```
     /// use trc::Trc;
     ///
