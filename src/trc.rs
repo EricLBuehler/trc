@@ -214,6 +214,7 @@ impl<T> Drop for SharedTrc<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     fn drop(&mut self) {
+        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
         sub_value(&unsafe { self.data.as_ref() }.atomicref, 1);
 
         let atomic = unsafe { self.data.as_mut() }
@@ -321,7 +322,7 @@ fn sub_value<T: std::ops::SubAssign<usize>>(value: &RwLock<T>, offset: usize) {
     all(target_has_atomic = "ptr", feature = "force_atomic")
 ))]
 fn sub_value(value: &AtomicUsize, offset: usize) {
-    value.fetch_sub(offset, std::sync::atomic::Ordering::Relaxed);
+    value.fetch_sub(offset, std::sync::atomic::Ordering::Release);
 }
 
 impl<T> Trc<T> {
