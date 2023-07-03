@@ -3,6 +3,9 @@ use std::{ops::Deref, rc::Rc, sync::Arc};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use trc::Trc;
 
+//cargo install cargo-criterion
+//cargo criterion
+
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("Clone Trc", |b| b.iter(|| clone_trc()));
     c.bench_function("Clone Arc", |b| b.iter(|| clone_arc()));

@@ -90,19 +90,21 @@ assert_eq!(*trc, 200);
 ### Clone
 | Type | Average time (100000x) |
 | --- | ----------- |
-| Trc | 23.83ns |
-| Arc | 35.36ns |
-| Rc | 35.60ns |
+| Trc | 33.255ns |
+| Arc | 35.182ns |
+| Rc | 14.354ns |
 
-Trc: 1.48x faster than Arc for Clone
+Trc: 1.06x faster than Arc for Clone
 
-Trc: 1.49x faster than Rc for Clone
+Trc: 2.32x slower than Rc for Clone
 
 ### Deref
 | Type | Average time (100000x) |
 | --- | ----------- |
-| Trc | 12.20ns |
-| Arc | 12.33ns |
-| Rc | 12.50ns |
+| Trc | 28.466ns |
+| Arc | 25.976ns |
+| Rc | 11.009ns |
 
-Analysis: All are roughly the same, and the difference likely comes down to error.
+Trc: 1.1x slower than Arc for Deref
+
+Trc: 2.59x faster than Rc for Deref
