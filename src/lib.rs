@@ -13,6 +13,7 @@
 //! must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
 
 pub mod trc;
+pub use crate::trc::SharedTrc;
 pub use crate::trc::Trc;
 pub use crate::trc::Weak;
 

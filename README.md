@@ -38,11 +38,12 @@ Example of `Trc<T>` with multiple threads:
 ```rust
 use std::thread;
 use trc::Trc;
+use trc::SharedTrc;
 
 let trc = Trc::new(100);
-let mut trc2 = Trc::clone_across_thread(&trc);
-
+let shared = SharedTrc::from_trc(&thread_trc_main);
 let handle = thread::spawn(move || {
+    let mut trc = SharedTrc::to_trc(shared);
     *trc2 = 200;
 });
 

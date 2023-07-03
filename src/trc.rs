@@ -2,12 +2,12 @@
 #![allow(clippy::mut_from_ref)]
 
 use core::{
-    borrow::{Borrow, BorrowMut},
+    borrow::Borrow,
     fmt::{Debug, Display, Pointer},
-    ops::{Deref, DerefMut},
+    hash::{Hash, Hasher},
+    ops::Deref,
     pin::Pin,
     ptr::NonNull,
-    hash::{Hash, Hasher},
 };
 
 #[cfg(any(
@@ -28,7 +28,7 @@ use spin::rwlock::RwLock;
 ))]
 use core::sync::atomic::AtomicUsize;
 
-pub struct SharedTrcData<T> {
+pub struct SharedTrc<T> {
     #[cfg(any(
         all(not(target_has_atomic = "ptr"), feature = "default"),
         feature = "force_lock"
@@ -52,11 +52,6 @@ pub struct SharedTrcData<T> {
     pub data: T,
 }
 
-struct LocalThreadTrcData<T> {
-    shareddata: NonNull<SharedTrcData<T>>,
-    threadref: usize,
-}
-
 /// `Trc<T>` is a heap-allocated smart pointer for sharing data across threads is a thread-safe and performant manner.
 /// `Trc<T>` stands for: Thread Reference Counted.
 /// `Trc<T>` provides shared ownership of the data similar to `Arc<T>` and `Rc<T>`. In addition, it also provides interior mutability.
@@ -71,15 +66,17 @@ struct LocalThreadTrcData<T> {
 /// must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (whcih can be dropped), and only keeps the backing allocation alive.
 /// See [`Weak`] for more information.
 ///
+/// This is relatively expensive; it allocates memory on the heap. However, calling the method
+/// is most likely something that will not be done in loop.
+///
 /// ## Clone behavior
 /// When a `Trc<T>` is cloned, it's internal (wrapped) data stays at the same memory location, but a new `Trc<T>` is constructed and returned.
 /// This makes a `clone` a relatively inexpensive operation because only a wrapper is constructed.
 /// This new `Trc<T>` points to the same memory, and all `Trc<T>`s that point to that memory in that thread will have their thread-local reference counts incremented
 /// and their atomic reference counts unchanged.
 ///
-/// For use of threads, `Trc<T>` has a `clone_across_thread` method. This is relatively expensive; it allocates memory on the heap. However, calling the method
-/// is most likely something that will not be done in loop.
-/// `clone_across_thread` increments the atomic reference count - that is, the reference count that tells how many threads are using the object.
+/// To implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`]. However, `Weak<T>` does, and it is the only way to safely send a `Trc<T>` across
+/// threads. See [`Weak`] for how to convert `Trc` to `Weak`.
 ///
 /// ## Drop behavior
 ///
@@ -88,8 +85,9 @@ struct LocalThreadTrcData<T> {
 /// local `Trc<T>` is dropped.
 ///
 /// ## [`Deref`] and [`DerefMut`] behavior
-/// For ease of developer use, `Trc<T>` comes with [`Deref`] and [`DerefMut`] implemented to allow internal mutation.
-/// `Trc<T>` automatically dereferences to `&T` or `&mut T`. This allows method calls and member acess of `T`.
+/// For ease of developer use, `Trc<T>` comes with [`Deref`] implemented.
+/// `Trc<T>` automatically dereferences to `&T`. This allows method calls and member acess of `T`.
+/// [`DerefMut`] is not implemented as it is unsafe. However, `Trc<T>` does provide an unsafe `.deref_mut()` method to get a `&mut T`.
 /// To prevent name clashes, `Trc<T>`'s functions are associated.
 ///
 /// ## Footnote on `dyn` wrapping
@@ -106,7 +104,7 @@ struct LocalThreadTrcData<T> {
 ///
 /// let mut trc = Trc::new(100);
 /// assert_eq!(*trc, 100);
-/// *trc = 200;
+/// *unsafe { Trc::deref_mut(&mut trc)} = 200;
 /// assert_eq!(*trc, 200);
 /// ```
 ///
@@ -114,21 +112,166 @@ struct LocalThreadTrcData<T> {
 /// ```
 /// use std::thread;
 /// use trc::Trc;
+/// use trc::SharedTrc;
 ///
 /// let trc = Trc::new(100);
-/// let mut trc2 = Trc::clone_across_thread(&trc);
-///
+/// let shared = SharedTrc::from_trc(&trc);
 /// let handle = thread::spawn(move || {
-///     *trc2 = 200;
+///     let mut trc = SharedTrc::to_trc(shared);
+///     *unsafe { Trc::deref_mut(&mut trc)} = 200;
 /// });
 ///
 /// handle.join().unwrap();
 /// assert_eq!(*trc, 200);
 /// ```
 ///
-#[derive(Eq)]
+///
+///
 pub struct Trc<T> {
-    data: NonNull<LocalThreadTrcData<T>>,
+    shared: NonNull<SharedTrc<T>>,
+    threadref: NonNull<usize>,
+}
+
+pub struct SharedTrcWrapper<T> {
+    data: NonNull<SharedTrc<T>>,
+}
+
+unsafe impl<T: Sync + Send> Send for SharedTrcWrapper<T> {}
+unsafe impl<T: Sync + Send> Sync for SharedTrcWrapper<T> {}
+
+impl<T> SharedTrc<T> {
+    pub fn from_trc(trc: &Trc<T>) -> SharedTrcWrapper<T> {
+        sum_value(&unsafe { trc.shared.as_ref() }.atomicref, 1);
+        SharedTrcWrapper { data: trc.shared }
+    }
+
+    pub fn to_trc(this: SharedTrcWrapper<T>) -> Trc<T> {
+        let tbx = Box::new(1);
+        let res = Trc {
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: this.data,
+        };
+        std::mem::forget(this);
+        return res;
+    }
+}
+
+impl<T> Drop for SharedTrcWrapper<T> {
+    #[inline]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
+    fn drop(&mut self) {
+        sub_value(&unsafe { self.data.as_ref() }.atomicref, 1);
+
+        let mut readlock = unsafe { self.data.as_ref() }.atomicref.try_read();
+
+        #[cfg(not(feature = "nostd"))]
+        {
+            while readlock.is_err() {
+                readlock = unsafe { self.data.as_ref() }.atomicref.try_read();
+            }
+        }
+        #[cfg(feature = "nostd")]
+        {
+            while readlock.is_none() {
+                readlock = unsafe { self.data.as_ref() }.atomicref.try_read();
+            }
+        }
+        let readdata = readlock.unwrap();
+
+        if *readdata == 0 {
+            unsafe { Box::from_raw(self.data.as_ptr()) };
+        }
+    }
+
+    #[inline]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
+    fn drop(&mut self) {
+        sub_value(&unsafe { self.data.as_ref() }.atomicref, 1);
+
+        let atomic = unsafe { self.data.as_mut() }
+            .atomicref
+            .load(std::sync::atomic::Ordering::Acquire);
+
+        if atomic == 0 {
+            unsafe { Box::from_raw(self.data.as_ptr()) };
+        }
+    }
+}
+
+impl<T> From<SharedTrcWrapper<T>> for Trc<T> {
+    fn from(value: SharedTrcWrapper<T>) -> Self {
+        SharedTrc::to_trc(value)
+    }
+}
+
+#[cfg(any(
+    all(not(target_has_atomic = "ptr"), feature = "default"),
+    feature = "force_lock"
+))]
+fn sum_value<T: std::ops::AddAssign<usize>>(value: &RwLock<T>, offset: usize) {
+    let mut writelock = value.try_write();
+
+    #[cfg(not(feature = "nostd"))]
+    {
+        while writelock.is_err() {
+            writelock = value.try_write();
+        }
+    }
+    #[cfg(feature = "nostd")]
+    {
+        while writelock.is_none() {
+            writelock = value.try_write();
+        }
+    }
+    let mut writedata = writelock.unwrap();
+
+    *writedata += offset;
+}
+
+#[cfg(any(
+    all(target_has_atomic = "ptr", feature = "default"),
+    all(target_has_atomic = "ptr", feature = "force_atomic")
+))]
+fn sum_value(value: &AtomicUsize, offset: usize) {
+    value.fetch_add(offset, std::sync::atomic::Ordering::AcqRel);
+}
+
+#[cfg(any(
+    all(not(target_has_atomic = "ptr"), feature = "default"),
+    feature = "force_lock"
+))]
+fn sub_value<T: std::ops::SubAssign<usize>>(value: &RwLock<T>, offset: usize) {
+    let mut writelock = value.try_write();
+
+    #[cfg(not(feature = "nostd"))]
+    {
+        while writelock.is_err() {
+            writelock = value.try_write();
+        }
+    }
+    #[cfg(feature = "nostd")]
+    {
+        while writelock.is_none() {
+            writelock = value.try_write();
+        }
+    }
+    let mut writedata = writelock.unwrap();
+
+    *writedata -= offset;
+}
+
+#[cfg(any(
+    all(target_has_atomic = "ptr", feature = "default"),
+    all(target_has_atomic = "ptr", feature = "force_atomic")
+))]
+fn sub_value(value: &AtomicUsize, offset: usize) {
+    value.fetch_sub(offset, std::sync::atomic::Ordering::AcqRel);
 }
 
 impl<T> Trc<T> {
@@ -145,7 +288,7 @@ impl<T> Trc<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     pub fn new(value: T) -> Self {
-        let shareddata = SharedTrcData {
+        let shareddata = SharedTrc {
             atomicref: AtomicUsize::new(1),
             weakcount: AtomicUsize::new(0),
             data: value,
@@ -153,15 +296,11 @@ impl<T> Trc<T> {
 
         let sbx = Box::new(shareddata);
 
-        let localldata = LocalThreadTrcData {
-            shareddata: NonNull::from(Box::leak(sbx)),
-            threadref: 1,
-        };
-
-        let tbx = Box::new(localldata);
+        let tbx = Box::new(1);
 
         Trc {
-            data: NonNull::from(Box::leak(tbx)),
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: NonNull::from(Box::leak(sbx)),
         }
     }
 
@@ -178,7 +317,7 @@ impl<T> Trc<T> {
         feature = "force_lock"
     ))]
     pub fn new(value: T) -> Self {
-        let shareddata = SharedTrcData {
+        let shareddata = SharedTrc {
             atomicref: RwLock::new(1),
             weakcount: RwLock::new(0),
             data: value,
@@ -186,15 +325,11 @@ impl<T> Trc<T> {
 
         let sbx = Box::new(shareddata);
 
-        let localldata = LocalThreadTrcData {
-            shareddata: NonNull::from(Box::leak(sbx)),
-            threadref: 1,
-        };
-
-        let tbx = Box::new(localldata);
+        let tbx = Box::new(1);
 
         Trc {
-            data: NonNull::from(Box::leak(tbx)),
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: NonNull::from(Box::leak(sbx)),
         }
     }
 
@@ -204,9 +339,9 @@ impl<T> Trc<T> {
     /// ```
     /// use trc::Trc;
     /// use trc::Weak;
-    /// 
+    ///
     /// struct T(Weak<T>);
-    /// 
+    ///
     /// let trc = Trc::new_cyclic(|x| T(x.clone()));
     /// ```
     #[inline]
@@ -214,39 +349,34 @@ impl<T> Trc<T> {
         all(target_has_atomic = "ptr", feature = "default"),
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
-    pub fn new_cyclic<F>(data_fn: F) -> Self 
-        where F: FnOnce(&Weak<T>) -> T
+    pub fn new_cyclic<F>(data_fn: F) -> Self
+    where
+        F: FnOnce(&Weak<T>) -> T,
     {
-        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrcData {
+        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrc {
             atomicref: AtomicUsize::new(0),
             weakcount: AtomicUsize::new(0),
             data: std::mem::MaybeUninit::<T>::uninit(),
-        })).into();
+        }))
+        .into();
 
-        let init_ptr: NonNull<SharedTrcData<T>> = shareddata.cast();
-        
-        let weak: Weak<_> = Weak {data: init_ptr};
+        let init_ptr: NonNull<SharedTrc<T>> = shareddata.cast();
+
+        let weak: Weak<_> = Weak { data: init_ptr };
 
         let data = data_fn(&weak);
 
         unsafe {
             let ptr = init_ptr.as_ptr();
             std::ptr::write(std::ptr::addr_of_mut!((*ptr).data), data);
-            let prev = (*ptr)
-                .atomicref
-                .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
-            debug_assert_eq!(prev, 0);
+            sum_value(&(*ptr).atomicref, 1);
         }
 
-        let localldata = LocalThreadTrcData {
-            shareddata: init_ptr,
-            threadref: 1,
-        };
-
-        let tbx = Box::new(localldata);
+        let tbx = Box::new(1);
 
         Trc {
-            data: NonNull::from(Box::leak(tbx)),
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: init_ptr,
         }
     }
 
@@ -256,9 +386,9 @@ impl<T> Trc<T> {
     /// ```
     /// use trc::Trc;
     /// use trc::Weak;
-    /// 
+    ///
     /// struct T(Weak<T>);
-    /// 
+    ///
     /// let trc = Trc::new_cyclic(|x| T(x.clone()));
     /// ```
     #[inline]
@@ -266,54 +396,34 @@ impl<T> Trc<T> {
         all(not(target_has_atomic = "ptr"), feature = "default"),
         feature = "force_lock"
     ))]
-    pub fn new_cyclic<F>(data_fn: F) -> Self 
-        where F: FnOnce(&Weak<T>) -> T
+    pub fn new_cyclic<F>(data_fn: F) -> Self
+    where
+        F: FnOnce(&Weak<T>) -> T,
     {
-        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrcData {
+        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrc {
             atomicref: RwLock::new(0),
             weakcount: RwLock::new(0),
             data: std::mem::MaybeUninit::<T>::uninit(),
-        })).into();
+        }))
+        .into();
 
-        let init_ptr: NonNull<SharedTrcData<T>> = shareddata.cast();
-        
-        let weak: Weak<_> = Weak {data: init_ptr};
+        let init_ptr: NonNull<SharedTrc<T>> = shareddata.cast();
+
+        let weak: Weak<_> = Weak { data: init_ptr };
 
         let data = data_fn(&weak);
 
         unsafe {
             let ptr = init_ptr.as_ptr();
             std::ptr::write(std::ptr::addr_of_mut!((*ptr).data), data);
-            let mut writelock = (*ptr).atomicref.try_write();
-
-            #[cfg(not(feature = "nostd"))]
-            {
-                while writelock.is_err() {
-                    writelock = (*ptr).atomicref.try_write();
-                }
-            }
-            #[cfg(feature = "nostd")]
-            {
-                while writelock.is_none() {
-                    writelock = (*ptr).atomicref.try_write();
-                }
-            }
-            let mut writedata = writelock.unwrap();
-
-            debug_assert_eq!(*writedata, 0);
-
-            *writedata += 1;
+            sum_value(&(*ptr).atomicref, 1);
         }
 
-        let localldata = LocalThreadTrcData {
-            shareddata: init_ptr,
-            threadref: 1,
-        };
-
-        let tbx = Box::new(localldata);
+        let tbx = Box::new(1);
 
         Trc {
-            data: NonNull::from(Box::leak(tbx)),
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: init_ptr,
         }
     }
 
@@ -326,20 +436,22 @@ impl<T> Trc<T> {
     /// ```
     #[inline]
     pub fn local_refcount(this: &Self) -> usize {
-        this.inner().threadref
+        unsafe { this.threadref.as_ref() }.clone()
     }
 
     /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc<T>`.
     /// ```
     /// use std::thread;
     /// use trc::Trc;
+    /// use trc::SharedTrc;
     ///
     /// let trc = Trc::new(100);
-    /// let mut trc2 = Trc::clone_across_thread(&trc);
+    /// let shared = SharedTrc::from_trc(&trc);
     ///
     /// let handle = thread::spawn(move || {
-    ///     *trc2 = 200;
-    ///     assert_eq!(Trc::atomic_count(&trc2), 2);
+    ///     let mut trc = SharedTrc::to_trc(shared);
+    ///     *unsafe { Trc::deref_mut(&mut trc)} = 200;
+    ///     assert_eq!(Trc::atomic_count(&trc), 2);
     /// });
     ///
     /// handle.join().unwrap();
@@ -352,18 +464,18 @@ impl<T> Trc<T> {
         feature = "force_lock"
     ))]
     pub fn atomic_count(this: &Self) -> usize {
-        let mut readlock = this.inner_shared().atomicref.try_read();
+        let mut readlock = unsafe { this.shared.as_ref() }.atomicref.try_read();
 
         #[cfg(not(feature = "nostd"))]
         {
             while readlock.is_err() {
-                readlock = this.inner_shared().atomicref.try_read();
+                readlock = unsafe { this.shared.as_ref() }.atomicref.try_read();
             }
         }
         #[cfg(feature = "nostd")]
         {
             while readlock.is_none() {
-                readlock = this.inner_shared().atomicref.try_read();
+                readlock = unsafe { this.shared.as_ref() }.atomicref.try_read();
             }
         }
         *readlock.unwrap()
@@ -373,13 +485,15 @@ impl<T> Trc<T> {
     /// ```
     /// use std::thread;
     /// use trc::Trc;
+    /// use trc::SharedTrc;
     ///
     /// let trc = Trc::new(100);
-    /// let mut trc2 = Trc::clone_across_thread(&trc);
+    /// let shared = SharedTrc::from_trc(&trc);
     ///
     /// let handle = thread::spawn(move || {
-    ///     *trc2 = 200;
-    ///     assert_eq!(Trc::atomic_count(&trc2), 2);
+    ///     let mut trc = SharedTrc::to_trc(shared);
+    ///     *unsafe { Trc::deref_mut(&mut trc)} = 200;
+    ///     assert_eq!(Trc::atomic_count(&trc), 2);
     /// });
     ///
     /// handle.join().unwrap();
@@ -392,7 +506,7 @@ impl<T> Trc<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     pub fn atomic_count(this: &Self) -> usize {
-        this.inner_shared()
+        unsafe { this.shared.as_ref() }
             .atomicref
             .load(std::sync::atomic::Ordering::Acquire)
     }
@@ -415,18 +529,18 @@ impl<T> Trc<T> {
         feature = "force_lock"
     ))]
     pub fn weak_count(this: &Self) -> usize {
-        let mut readlock = this.inner_shared().weakcount.try_read();
+        let mut readlock = unsafe { this.shared.as_ref() }.weakcount.try_read();
 
         #[cfg(not(feature = "nostd"))]
         {
             while readlock.is_err() {
-                readlock = this.inner_shared().weakcount.try_read();
+                readlock = unsafe { this.shared.as_ref() }.weakcount.try_read();
             }
         }
         #[cfg(feature = "nostd")]
         {
             while readlock.is_none() {
-                readlock = this.inner_shared().weakcount.try_read();
+                readlock = unsafe { this.shared.as_ref() }.weakcount.try_read();
             }
         }
         *readlock.unwrap()
@@ -450,83 +564,9 @@ impl<T> Trc<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     pub fn weak_count(this: &Self) -> usize {
-        this.inner_shared()
+        unsafe { this.shared.as_ref() }
             .weakcount
             .load(std::sync::atomic::Ordering::Acquire)
-    }
-
-    /// Clone a `Trc<T>` across threads (increment it's atomic reference count). This is very important to do because it prevents reference count race conditions, which lead to memory errors.
-    /// ```
-    /// use trc::Trc;
-    ///
-    /// let trc = Trc::new(100);
-    /// let trc2 = Trc::clone_across_thread(&trc);
-    /// assert_eq!(Trc::atomic_count(&trc), Trc::atomic_count(&trc2));
-    /// ```
-    #[inline]
-    #[cfg(any(
-        all(not(target_has_atomic = "ptr"), feature = "default"),
-        feature = "force_lock"
-    ))]
-    pub fn clone_across_thread(this: &Self) -> Self {
-        let mut writelock = this.inner_shared().atomicref.try_write();
-
-        #[cfg(not(feature = "nostd"))]
-        {
-            while writelock.is_err() {
-                writelock = this.inner_shared().atomicref.try_write();
-            }
-        }
-        #[cfg(feature = "nostd")]
-        {
-            while writelock.is_none() {
-                writelock = this.inner_shared().atomicref.try_write();
-            }
-        }
-        let mut writedata = writelock.unwrap();
-
-        *writedata += 1;
-
-        let localldata = LocalThreadTrcData {
-            shareddata: this.inner().shareddata,
-            threadref: 1,
-        };
-
-        let tbx = Box::new(localldata);
-
-        Trc {
-            data: NonNull::from(Box::leak(tbx)),
-        }
-    }
-
-    /// Clone a `Trc<T>` across threads (increment it's atomic reference count). This is very important to do because it prevents reference count race conditions, which lead to memory errors.
-    /// ```
-    /// use trc::Trc;
-    ///
-    /// let trc = Trc::new(100);
-    /// let trc2 = Trc::clone_across_thread(&trc);
-    /// assert_eq!(Trc::atomic_count(&trc), Trc::atomic_count(&trc2));
-    /// ```
-    #[inline]
-    #[cfg(any(
-        all(target_has_atomic = "ptr", feature = "default"),
-        all(target_has_atomic = "ptr", feature = "force_atomic")
-    ))]
-    pub fn clone_across_thread(this: &Self) -> Self {
-        this.inner_shared()
-            .atomicref
-            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
-
-        let localldata = LocalThreadTrcData {
-            shareddata: this.inner().shareddata,
-            threadref: 1,
-        };
-
-        let tbx = Box::new(localldata);
-
-        Trc {
-            data: NonNull::from(Box::leak(tbx)),
-        }
     }
 
     /// Checks if the other `Trc<T>` is equal to this one according to their internal pointers.
@@ -539,7 +579,7 @@ impl<T> Trc<T> {
     /// ```
     #[inline]
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        this.inner().shareddata.as_ptr() == other.inner().shareddata.as_ptr()
+        this.shared.as_ptr() == other.shared.as_ptr()
     }
 
     /// Gets the raw pointer to the most inner layer of `Trc<T>`.
@@ -550,8 +590,8 @@ impl<T> Trc<T> {
     /// println!("{}", Trc::as_ptr(&trc) as usize)
     /// ```
     #[inline]
-    pub fn as_ptr(this: &Self) -> *mut SharedTrcData<T> {
-        this.inner().shareddata.as_ptr()
+    pub fn as_ptr(this: &Self) -> *mut SharedTrc<T> {
+        this.shared.as_ptr()
     }
 
     /// Creates a new `Pin<Trc<T>>`. If `T` does not implement [`Unpin`], then the data will be pinned in memory and unable to be moved.
@@ -559,27 +599,21 @@ impl<T> Trc<T> {
     pub fn pin(data: T) -> Pin<Trc<T>> {
         unsafe { Pin::new_unchecked(Trc::new(data)) }
     }
-}
 
-impl<T> Trc<T> {
+    /// Get a &mut reference to the internal data.
+    /// ```
+    /// use trc::Trc;
+    /// use std::ops::DerefMut;
+    ///
+    /// let mut trc = Trc::new(100);
+    /// *unsafe { Trc::deref_mut(&mut trc)} = 200;
+    /// let mutref = unsafe { trc.deref_mut() };
+    /// *mutref = 300;
+    /// assert_eq!(*trc, 300);
+    /// ```
     #[inline]
-    fn inner(&self) -> &LocalThreadTrcData<T> {
-        unsafe { self.data.as_ref() }
-    }
-
-    #[inline]
-    fn inner_shared(&self) -> &SharedTrcData<T> {
-        unsafe { self.data.as_ref().shareddata.as_ref() }
-    }
-
-    #[inline]
-    fn inner_mut(&self) -> &mut LocalThreadTrcData<T> {
-        unsafe { &mut *self.data.as_ptr() }
-    }
-
-    #[inline]
-    fn inner_shared_mut(&self) -> &mut SharedTrcData<T> {
-        unsafe { &mut *(*self.data.as_ptr()).shareddata.as_ptr() }
+    pub unsafe fn deref_mut(&mut self) -> &mut T {
+        &mut self.shared.as_mut().data
     }
 }
 
@@ -597,25 +631,7 @@ impl<T> Deref for Trc<T> {
     /// ```
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.inner_shared().borrow().data
-    }
-}
-
-impl<T> DerefMut for Trc<T> {
-    /// Get a &mut reference to the internal data.
-    /// ```
-    /// use trc::Trc;
-    /// use std::ops::DerefMut;
-    ///
-    /// let mut trc = Trc::new(100);
-    /// *trc = 200;
-    /// let mutref = trc.deref_mut();
-    /// *mutref = 300;
-    /// assert_eq!(*trc, 300);
-    /// ```
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner_shared_mut().borrow_mut().data
+        &unsafe { self.shared.as_ref() }.data
     }
 }
 
@@ -626,58 +642,48 @@ impl<T> Drop for Trc<T> {
         feature = "force_lock"
     ))]
     fn drop(&mut self) {
-        self.inner_mut().threadref -= 1;
-        if self.inner().threadref == 0 {
-            let mut writelock = self.inner_shared().atomicref.try_write();
+        *unsafe { self.threadref.as_mut() } -= 1;
+
+        if *unsafe { self.threadref.as_ref() } == 0 {
+            sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1);
+
+            let mut readlock = unsafe { self.shared.as_ref() }.weakcount.try_read();
 
             #[cfg(not(feature = "nostd"))]
             {
-                while writelock.is_err() {
-                    writelock = self.inner_shared().atomicref.try_write();
+                while readlock.is_err() {
+                    readlock = unsafe { self.shared.as_ref() }.weakcount.try_read();
                 }
             }
             #[cfg(feature = "nostd")]
             {
-                while writelock.is_none() {
-                    writelock = self.inner_shared().atomicref.try_write();
+                while readlock.is_none() {
+                    readlock = unsafe { self.shared.as_ref() }.weakcount.try_read();
                 }
             }
-            let mut writedata = writelock.unwrap();
+            let weakdata = readlock.unwrap();
 
-            *writedata -= 1;
 
-            if *writedata == 0 {
-                std::mem::drop(writedata);
 
-                let mut readlock = self.inner_shared().weakcount.try_read();
+            let mut readlock = unsafe { self.shared.as_ref() }.atomicref.try_read();
 
-                #[cfg(not(feature = "nostd"))]
-                {
-                    while readlock.is_err() {
-                        readlock = self.inner_shared().weakcount.try_read();
-                    }
+            #[cfg(not(feature = "nostd"))]
+            {
+                while readlock.is_err() {
+                    readlock = unsafe { self.shared.as_ref() }.atomicref.try_read();
                 }
-                #[cfg(feature = "nostd")]
-                {
-                    while readlock.is_none() {
-                        readlock = self.inner_shared().weakcount.try_read();
-                    }
+            }
+            #[cfg(feature = "nostd")]
+            {
+                while readlock.is_none() {
+                    readlock = unsafe { self.shared.as_ref() }.atomicref.try_read();
                 }
-                let readdata = readlock.unwrap();
+            }
+            let atomicdata = readlock.unwrap();
 
-                if *readdata > 0 {
-                    unsafe { std::ptr::drop_in_place(&mut self.inner_shared_mut().data as *mut T) };
-                    let new = unsafe {
-                        NonNull::new_unchecked(std::mem::transmute_copy::<
-                            usize,
-                            *mut SharedTrcData<T>,
-                        >(&usize::MAX))
-                    };
-                    self.inner_mut().shareddata = new;
-                } else {
-                    unsafe { Box::from_raw(self.inner().shareddata.as_ptr()) };
-                    unsafe { Box::from_raw(self.data.as_ptr()) };
-                }
+            if *weakdata == 0 && *atomicdata == 0 {
+                unsafe { Box::from_raw(self.threadref.as_ptr()) };
+                unsafe { std::ptr::drop_in_place(self.shared.as_ptr()) };
             }
         }
     }
@@ -688,24 +694,19 @@ impl<T> Drop for Trc<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     fn drop(&mut self) {
-        self.inner_mut().threadref -= 1;
-        if self.inner().threadref == 0 {
-            let res = self
-                .inner_shared()
+        *unsafe { self.threadref.as_mut() } -= 1;
+
+        if *unsafe { self.threadref.as_ref() } == 0 {
+            sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1);
+            let weak = unsafe { self.shared.as_mut() }
+                .weakcount
+                .load(std::sync::atomic::Ordering::Acquire);
+            let atomic = unsafe { self.shared.as_mut() }
                 .atomicref
-                .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
-            if res > 0 && res - 1 == 0 {
-                if self
-                    .inner_shared()
-                    .weakcount
-                    .load(std::sync::atomic::Ordering::Acquire)
-                    > 0
-                {
-                    unsafe { std::ptr::drop_in_place(&mut self.inner_shared_mut().data as *mut T) };
-                } else {
-                    unsafe { Box::from_raw(self.inner().shareddata.as_ptr()) };
-                    unsafe { Box::from_raw(self.data.as_ptr()) };
-                }
+                .load(std::sync::atomic::Ordering::Acquire);
+            if weak == 0 && atomic == 0 {
+                unsafe { Box::from_raw(self.threadref.as_ptr()) };
+                unsafe { std::ptr::drop_in_place(self.shared.as_ptr()) };
             }
         }
     }
@@ -724,9 +725,12 @@ impl<T> Clone for Trc<T> {
     #[inline]
 
     fn clone(&self) -> Self {
-        self.inner_mut().threadref += 1;
+        unsafe { *self.threadref.as_ptr() += 1 };
 
-        Trc { data: self.data }
+        Trc {
+            shared: self.shared,
+            threadref: self.threadref,
+        }
     }
 }
 
@@ -736,21 +740,9 @@ impl<T> AsRef<T> for Trc<T> {
     }
 }
 
-impl<T> AsMut<T> for Trc<T> {
-    fn as_mut(&mut self) -> &mut T {
-        Trc::deref_mut(self)
-    }
-}
-
 impl<T> Borrow<T> for Trc<T> {
     fn borrow(&self) -> &T {
         self.as_ref()
-    }
-}
-
-impl<T> BorrowMut<T> for Trc<T> {
-    fn borrow_mut(&mut self) -> &mut T {
-        self.as_mut()
     }
 }
 
@@ -800,8 +792,8 @@ impl<T: Hash> Hash for Trc<T> {
 }
 
 impl<T: PartialOrd> PartialOrd for Trc<T> {
-    /// "Greater than or equal to" comparison for two `Trc<T>`s. 
-    /// 
+    /// "Greater than or equal to" comparison for two `Trc<T>`s.
+    ///
     /// Calls `.partial_cmp` on the data.
     /// ```
     /// use trc::Trc;
@@ -815,8 +807,8 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
         self.deref().ge(other.deref())
     }
 
-    /// "Less than or equal to" comparison for two `Trc<T>`s. 
-    /// 
+    /// "Less than or equal to" comparison for two `Trc<T>`s.
+    ///
     /// Calls `.le` on the data.
     /// ```
     /// use trc::Trc;
@@ -830,12 +822,12 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
         self.deref().ge(other.deref())
     }
 
-    /// "Greater than" comparison for two `Trc<T>`s. 
-    /// 
+    /// "Greater than" comparison for two `Trc<T>`s.
+    ///
     /// Calls `.gt` on the data.
     /// ```
     /// use trc::Trc;
-    /// 
+    ///
     /// let trc1 = Trc::from(200);
     /// let trc2 = Trc::from(100);
     /// assert!(trc1>trc2);
@@ -845,8 +837,8 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
         self.deref().gt(other.deref())
     }
 
-    /// "Less than" comparison for two `Trc<T>`s. 
-    /// 
+    /// "Less than" comparison for two `Trc<T>`s.
+    ///
     /// Calls `.lt` on the data.
     /// ```
     /// use trc::Trc;
@@ -860,8 +852,8 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
         self.deref().lt(other.deref())
     }
 
-    /// Partial comparison for two `Trc<T>`s. 
-    /// 
+    /// Partial comparison for two `Trc<T>`s.
+    ///
     /// Calls `.partial_cmp` on the data.
     /// ```
     /// use trc::Trc;
@@ -893,9 +885,11 @@ impl<T: Ord> Ord for Trc<T> {
     }
 }
 
+impl<T: Eq> Eq for Trc<T> {}
+
 impl<T: PartialEq> PartialEq for Trc<T> {
-    /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations. 
-    /// 
+    /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations.
+    ///
     /// Calls `.eq` on the data.
     /// ```
     /// use trc::Trc;
@@ -906,11 +900,11 @@ impl<T: PartialEq> PartialEq for Trc<T> {
     /// ```
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.deref().eq(other.deref()) 
+        self.deref().eq(other.deref())
     }
 
-    /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations. 
-    /// 
+    /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations.
+    ///
     /// Calls `.ne` on the data.
     /// ```
     /// use trc::Trc;
@@ -922,12 +916,9 @@ impl<T: PartialEq> PartialEq for Trc<T> {
     #[allow(clippy::partialeq_ne_impl)]
     #[inline]
     fn ne(&self, other: &Self) -> bool {
-        self.deref().ne(other.deref()) 
+        self.deref().ne(other.deref())
     }
 }
-
-unsafe impl<T: Sync + Send> Send for Trc<T> {}
-unsafe impl<T: Sync + Send> Sync for Trc<T> {}
 
 /// `Weak<T>` is a non-owning reference to `Trc<T>`'s data. It is used to prevent cyclic references which cause memory to never be freed.
 /// `Weak<T>` does not keep the value alive (which can be dropped), they only keep the backing allocation alive. `Weak<T>` cannot even directly access the memory,
@@ -950,7 +941,7 @@ unsafe impl<T: Sync + Send> Sync for Trc<T> {}
 /// let weak = Weak::from_trc(&trc);
 /// let mut new_trc = Weak::to_trc(&weak).unwrap();
 /// assert_eq!(*new_trc, 100);
-/// *new_trc = 200;
+/// *unsafe { Trc::deref_mut(&mut new_trc)} = 200;
 /// assert_eq!(*new_trc, 200);
 /// ```
 ///
@@ -958,22 +949,21 @@ unsafe impl<T: Sync + Send> Sync for Trc<T> {}
 /// ```
 /// use std::thread;
 /// use trc::Trc;
-/// use trc::Weak;
+/// use trc::trc::SharedTrc;
 ///
 /// let trc = Trc::new(100);
-/// let weak = Weak::from_trc(&trc);
-///
+/// let shared = SharedTrc::from_trc(&trc);
 /// let handle = thread::spawn(move || {
-///     let mut trc = Weak::to_trc(&weak).unwrap();
+///     let mut trc = SharedTrc::to_trc(shared);
 ///     assert_eq!(*trc, 100);
-///     *trc = 200;
+///     *unsafe { Trc::deref_mut(&mut trc)} = 200;
 /// });
 /// handle.join().unwrap();
 /// assert_eq!(*trc, 200);
 /// ```
 ///
 pub struct Weak<T> {
-    data: NonNull<SharedTrcData<T>>, //Use this data because it has the ptr
+    data: NonNull<SharedTrc<T>>, //Use this data because it has the ptr
 }
 
 impl<T> Weak<T> {
@@ -991,26 +981,10 @@ impl<T> Weak<T> {
         all(not(target_has_atomic = "ptr"), feature = "default"),
         feature = "force_lock"
     ))]
-    pub fn from_trc(trc: &Trc<T>) -> Weak<T> {
-        let mut writelock = trc.inner_shared().weakcount.try_write();
-
-        #[cfg(not(feature = "nostd"))]
-        {
-            while writelock.is_err() {
-                writelock = trc.inner_shared().weakcount.try_write();
-            }
-        }
-        #[cfg(feature = "nostd")]
-        {
-            while writelock.is_none() {
-                writelock = trc.inner_shared().weakcount.try_write();
-            }
-        }
-        let mut writedata = writelock.unwrap();
-
-        *writedata += 1;
+    pub fn from_trc(trc: &Trc<T>) -> Self {
+        sum_value(&unsafe { trc.shared.as_ref() }.weakcount, 1);
         Weak {
-            data: unsafe { trc.data.as_ref() }.shareddata,
+            data: trc.shared,
         }
     }
 
@@ -1028,13 +1002,9 @@ impl<T> Weak<T> {
         all(target_has_atomic = "ptr", feature = "default"),
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
-    pub fn from_trc(trc: &Trc<T>) -> Weak<T> {
-        trc.inner_shared()
-            .weakcount
-            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
-        Weak {
-            data: unsafe { trc.data.as_ref() }.shareddata,
-        }
+    pub fn from_trc(trc: &Trc<T>) -> Self {
+        sum_value(&unsafe { trc.shared.as_ref() }.weakcount, 1);
+        Weak { data: trc.shared }
     }
 
     /// Create a `Trc<T>` from a `Weak<T>`. Because `Weak<T>` does not own the value, it might have been dropped already. If it has, a `None` is returned.
@@ -1056,24 +1026,6 @@ impl<T> Weak<T> {
         feature = "force_lock"
     ))]
     pub fn to_trc(this: &Self) -> Option<Trc<T>> {
-        let mut writelock = unsafe { this.data.as_ref() }.weakcount.try_write();
-
-        #[cfg(not(feature = "nostd"))]
-        {
-            while writelock.is_err() {
-                writelock = unsafe { this.data.as_ref() }.weakcount.try_write();
-            }
-        }
-        #[cfg(feature = "nostd")]
-        {
-            while writelock.is_none() {
-                writelock = unsafe { this.data.as_ref() }.weakcount.try_write();
-            }
-        }
-        let mut writedata = writelock.unwrap();
-
-        *writedata -= 1;
-
         let mut writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
 
         #[cfg(not(feature = "nostd"))]
@@ -1096,15 +1048,13 @@ impl<T> Weak<T> {
 
         *writedata += 1;
 
-        let localldata = LocalThreadTrcData {
-            shareddata: this.data,
-            threadref: 1,
-        };
+        sub_value(&unsafe { this.data.as_ref() }.weakcount, 1);
 
-        let tbx = Box::new(localldata);
+        let tbx = Box::new(1);
 
         Some(Trc {
-            data: NonNull::from(Box::leak(tbx)),
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: this.data,
         })
     }
 
@@ -1135,22 +1085,14 @@ impl<T> Weak<T> {
             return None;
         }
 
-        unsafe { this.data.as_ref() }
-            .weakcount
-            .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
-        unsafe { this.data.as_ref() }
-            .atomicref
-            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        sum_value(&unsafe { this.data.as_ref() }.atomicref, 1);
+        sub_value(&unsafe { this.data.as_ref() }.weakcount, 1);
 
-        let localldata = LocalThreadTrcData {
-            shareddata: this.data,
-            threadref: 1,
-        };
-
-        let tbx = Box::new(localldata);
+        let tbx = Box::new(1);
 
         Some(Trc {
-            data: NonNull::from(Box::leak(tbx)),
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: this.data,
         })
     }
 }
@@ -1172,22 +1114,7 @@ impl<T> Clone for Weak<T> {
         feature = "force_lock"
     ))]
     fn clone(&self) -> Self {
-        let mut writelock = unsafe { self.data.as_ref() }.weakcount.try_write();
-        #[cfg(not(feature = "nostd"))]
-        {
-            while writelock.is_err() {
-                writelock = unsafe { self.data.as_ref() }.weakcount.try_write();
-            }
-        }
-        #[cfg(feature = "nostd")]
-        {
-            while writelock.is_none() {
-                writelock = unsafe { self.data.as_ref() }.weakcount.try_write();
-            }
-        }
-        let mut writedata = writelock.unwrap();
-
-        *writedata += 1;
+        sum_value(&unsafe { self.data.as_ref() }.weakcount, 1);
 
         Weak { data: self.data }
     }
@@ -1208,10 +1135,7 @@ impl<T> Clone for Weak<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     fn clone(&self) -> Self {
-        unsafe { self.data.as_ref() }
-            .weakcount
-            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
-
+        sum_value(&unsafe { self.data.as_ref() }.weakcount, 1);
         Weak { data: self.data }
     }
 }
