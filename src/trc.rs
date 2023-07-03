@@ -369,7 +369,7 @@ impl<T> Trc<T> {
         feature = "force_lock"
     ))]
     pub fn new(value: T) -> Self {
-        let shareddata = SharedTrc {
+        let shareddata = SharedTrcInternal {
             atomicref: RwLock::new(1),
             weakcount: RwLock::new(0),
             data: value,
@@ -452,14 +452,14 @@ impl<T> Trc<T> {
     where
         F: FnOnce(&Weak<T>) -> T,
     {
-        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrc {
+        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrcInternal {
             atomicref: RwLock::new(0),
             weakcount: RwLock::new(0),
             data: std::mem::MaybeUninit::<T>::uninit(),
         }))
         .into();
 
-        let init_ptr: NonNull<SharedTrc<T>> = shareddata.cast();
+        let init_ptr: NonNull<SharedTrcInternal<T>> = shareddata.cast();
 
         let weak: Weak<_> = Weak { data: init_ptr };
 
