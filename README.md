@@ -90,9 +90,9 @@ assert_eq!(*trc, 200);
 ### Clone
 | Type | Average time (100000x) |
 | --- | ----------- |
-| Trc | 38.154ns |
-| Arc | 56.3ns |
-| Rc | 50.26ns |
+| Trc | 132.81ns |
+| Arc | 210.61ns |
+| Rc | 190.08ns |
 
 Trc: 1.48x faster than Arc for Clone
 
@@ -101,9 +101,9 @@ Trc: 1.31x faster than Rc for Clone
 ### Deref
 | Type | Average time (100000x) |
 | --- | ----------- |
-| Trc | 27.213ns |
-| Arc | 27.685ns |
-| Rc | 27.667ns |
+| Trc | 74.76ns |
+| Arc | 75.63ns |
+| Rc | 84.00ns |
 
 Trc: 1.02x faster than Arc for Deref
 

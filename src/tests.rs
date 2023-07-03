@@ -25,6 +25,14 @@ fn test_singlethreaded() {
 }
 
 #[test]
+fn test_singlethreaded2() {
+    let mut trc = Trc::new(100);
+    assert_eq!(*trc, 100);
+    *unsafe { Trc::deref_mut(&mut trc)} = 200;
+    assert_eq!(*trc, 200);
+}
+
+#[test]
 fn test_refcount() {
     let trc = Trc::new(100);
     let alt = trc.clone();

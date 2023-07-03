@@ -1,98 +1,82 @@
-use std::{time::Instant, sync::Arc, rc::Rc};
+use std::{time::Instant, sync::Arc, rc::Rc, ops::Deref};
 
 use trc::Trc;
 
-fn test_clone_trc() -> f64{
-    let trc = Trc::new(());
-    
-    let mut sum: u128 = 0;
-    for _ in 0..100000 {
-        let start = Instant::now();
-        let _ = Trc::clone(&trc);
-        let end = Instant::now();
-        sum += (end-start).as_nanos();
-    }
-
-    return sum as f64 / 100000.;
-}
-
-fn test_clone_arc() -> f64{
-    let arc = Arc::new(());
-    
-    let mut sum: u128 = 0;
-    for _ in 0..100000 {
-        let start = Instant::now();
-        let _ = Arc::clone(&arc);
-        let end = Instant::now();
-        sum += (end-start).as_nanos();
-    }
-
-    return sum as f64 / 100000.;
-}
-
-fn test_clone_rc() -> f64{
-    let rc = Rc::new(());
-    
-    let mut sum: u128 = 0;
-    for _ in 0..100000 {
-        let start = Instant::now();
-        let _ = Rc::clone(&rc);
-        let end = Instant::now();
-        sum += (end-start).as_nanos();
-    }
-
-    return sum as f64 / 100000.;
-}
-
-
-fn test_deref_trc() -> f64{
+fn test_clone_trc(n: f64) -> f64{
     let trc = Trc::new(100);
     
-    let mut sum: u128 = 0;
-    for _ in 0..100000 {
-        let start = Instant::now();
-        let _ = *trc;
-        let end = Instant::now();
-        sum += (end-start).as_nanos();
+    let start = Instant::now();
+    for _ in 0..(n as u64) {
+        std::hint::black_box(trc.clone());
     }
-
-    return sum as f64 / 100000.;
+    let end = Instant::now();
+    (end-start).as_nanos() as f64 / n
 }
 
-fn test_deref_arc() -> f64{
+fn test_clone_arc(n: f64) -> f64{
     let arc = Arc::new(100);
     
-    let mut sum: u128 = 0;
-    for _ in 0..100000 {
-        let start = Instant::now();
-        let _ = *arc;
-        let end = Instant::now();
-        sum += (end-start).as_nanos();
+    let start = Instant::now();
+    for _ in 0..(n as u64) {
+        std::hint::black_box(arc.clone());
     }
-
-    return sum as f64 / 100000.;
+    let end = Instant::now();
+    (end-start).as_nanos() as f64 / n
 }
 
-fn test_deref_rc() -> f64{
+fn test_clone_rc(n: f64) -> f64{
     let rc = Rc::new(100);
     
-    let mut sum: u128 = 0;
-    for _ in 0..100000 {
-        let start = Instant::now();
-        let _ = *rc;
-        let end = Instant::now();
-        sum += (end-start).as_nanos();
+    let start = Instant::now();
+    for _ in 0..(n as u64) {
+        std::hint::black_box(rc.clone());
     }
+    let end = Instant::now();
+    (end-start).as_nanos() as f64 / n
+}
 
-    return sum as f64 / 100000.;
+
+fn test_deref_trc(n: f64) -> f64{
+    let trc = Trc::new(100);
+    
+    let start = Instant::now();
+    for _ in 0..(n as u64) {
+        std::hint::black_box(trc.deref());
+    }
+    let end = Instant::now();
+    (end-start).as_nanos() as f64 / n
+}
+
+fn test_deref_arc(n: f64) -> f64{
+    let arc = Arc::new(100);
+    
+    let start = Instant::now();
+    for _ in 0..(n as u64) {
+        std::hint::black_box(arc.deref());
+    }
+    let end = Instant::now();
+    (end-start).as_nanos() as f64 / n
+}
+
+fn test_deref_rc(n: f64) -> f64{
+    let rc = Rc::new(100);
+    
+    let start = Instant::now();
+    for _ in 0..(n as u64) {
+        std::hint::black_box(rc.deref());
+    }
+    let end = Instant::now();
+    (end-start).as_nanos() as f64 / n
 }
 
 fn main() {
-    println!("Clone test Trc (100000x): {}ns avg", test_clone_trc());
-    println!("Clone test Arc (100000x): {}ns avg", test_clone_arc());
-    println!("Clone test Rc (100000x): {}ns avg", test_clone_rc());
+    let n = 10e6;
 
-    println!("Deref test Trc (100000x): {}ns avg", test_deref_trc());
-    println!("Deref test Arc (100000x): {}ns avg", test_deref_arc());
-    println!("Deref test Rc (100000x): {}ns avg", test_deref_rc());
+    println!("Clone test Trc ({}x): {}ns avg", n, test_clone_trc(n));
+    println!("Clone test Arc ({}x): {}ns avg", n, test_clone_arc(n));
+    println!("Clone test Rc ({}x): {}ns avg", n, test_clone_rc(n));
+
+    println!("Deref test Trc ({}x): {}ns avg", n, test_deref_trc(n));
+    println!("Deref test Arc ({}x): {}ns avg", n, test_deref_arc(n));
+    println!("Deref test Rc ({}x): {}ns avg", n, test_deref_rc(n));
 }

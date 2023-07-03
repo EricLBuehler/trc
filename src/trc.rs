@@ -745,7 +745,6 @@ impl<T> Drop for Trc<T> {
     ))]
     fn drop(&mut self) {
         *unsafe { self.threadref.as_mut() } -= 1;
-
         if *unsafe { self.threadref.as_ref() } == 0 {
             sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1);
             let weak = unsafe { self.shared.as_mut() }
@@ -756,7 +755,7 @@ impl<T> Drop for Trc<T> {
                 .load(std::sync::atomic::Ordering::Relaxed);
             if weak == 0 && atomic == 0 {
                 unsafe { Box::from_raw(self.threadref.as_ptr()) };
-                unsafe { std::ptr::drop_in_place(self.shared.as_ptr()) };
+                unsafe { Box::from_raw(self.shared.as_ptr()) };
             }
         }
     }
