@@ -6,7 +6,7 @@
 ![Tests status](https://github.com/EricLBuehler/trc/actions/workflows/tests.yml/badge.svg)
 
 `Trc` is a performant biased reference-counted smart pointer for Rust.
-`Trc<T>` is a heap-allocated smart pointer for sharing data across threads is a thread-safe manner without putting locks on the data.
+It is a heap-allocated smart pointer for sharing data across threads is a thread-safe manner without putting locks on the data.
 `Trc<T>` stands for: Thread Reference Counted.
 `Trc<T>` provides a shared ownership of the data similar to `Arc<T>` and `Rc<T>`.
 It implements a custom version of biased reference counting, which is based on the observation that most objects are only used by one thread.
@@ -18,9 +18,11 @@ A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.
 They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
 must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (whcih can be dropped), and only keeps the backing allocation alive.
 
+To soundly implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`]. However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across threads. See `SharedTrc` for it's API, which is similar to that of `Weak`.
+
 `Trc` will automatically compile to use either locks or atomics, depending on the system. By default, `Trc` uses `std`.
 However, `Trc` can be compiled without `std`. When compiling withput `std`, locks and atomics are still available, and will be automatically compiled
-depending on the system. This is enabled using the `nostd` feature. Compilation with locks or atomics can be forced with the 
+depending on the system. This is enabled using the `nostd` feature. Compilation with locks or atomics can be forced with a feature flag.
 
 ## Examples
 

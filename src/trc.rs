@@ -76,7 +76,7 @@ pub struct SharedTrcInternal<T> {
 /// and their atomic reference counts unchanged.
 ///
 /// To soundly implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`]. However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across
-/// threads. See [`SharedTrc`] for it's API.
+/// threads. See [`SharedTrc`] for it's API, which is similar to that of `Weak`.
 ///
 /// ## Drop behavior
 ///
@@ -124,8 +124,6 @@ pub struct SharedTrcInternal<T> {
 /// handle.join().unwrap();
 /// assert_eq!(*trc, 200);
 /// ```
-///
-///
 ///
 pub struct Trc<T> {
     shared: NonNull<SharedTrcInternal<T>>,
