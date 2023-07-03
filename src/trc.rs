@@ -28,7 +28,7 @@ use spin::rwlock::RwLock;
 ))]
 use core::sync::atomic::AtomicUsize;
 
-pub struct SharedTrc<T> {
+pub struct SharedTrcInternal<T> {
     #[cfg(any(
         all(not(target_has_atomic = "ptr"), feature = "default"),
         feature = "force_lock"
@@ -75,8 +75,8 @@ pub struct SharedTrc<T> {
 /// This new `Trc<T>` points to the same memory, and all `Trc<T>`s that point to that memory in that thread will have their thread-local reference counts incremented
 /// and their atomic reference counts unchanged.
 ///
-/// To implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`]. However, `Weak<T>` does, and it is the only way to safely send a `Trc<T>` across
-/// threads. See [`Weak`] for how to convert `Trc` to `Weak`.
+/// To soundly implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`]. However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across
+/// threads. See [`SharedTrc`] for it's API.
 ///
 /// ## Drop behavior
 ///
@@ -128,24 +128,48 @@ pub struct SharedTrc<T> {
 ///
 ///
 pub struct Trc<T> {
-    shared: NonNull<SharedTrc<T>>,
+    shared: NonNull<SharedTrcInternal<T>>,
     threadref: NonNull<usize>,
 }
 
-pub struct SharedTrcWrapper<T> {
-    data: NonNull<SharedTrc<T>>,
+/// `SharedTrc<T>` is a thread-safe wrapper around the internal state of a `Trc<T>`. It is similar to a `Weak<T>`, with the exception
+/// that it does not modify the weak pointer and has less overhead. It also will not fail on conversion.
+pub struct SharedTrc<T> {
+    data: NonNull<SharedTrcInternal<T>>,
 }
 
-unsafe impl<T: Sync + Send> Send for SharedTrcWrapper<T> {}
-unsafe impl<T: Sync + Send> Sync for SharedTrcWrapper<T> {}
+unsafe impl<T: Sync + Send> Send for SharedTrc<T> {}
+unsafe impl<T: Sync + Send> Sync for SharedTrc<T> {}
 
 impl<T> SharedTrc<T> {
-    pub fn from_trc(trc: &Trc<T>) -> SharedTrcWrapper<T> {
+    /// Convert a `Trc<T>` to a `SharedTrc<T>`, incrementing it's atomic reference count.
+    /// While this `SharedTrc<T>` is alive, the data contained by `Trc<T>` will not be dropped, which is
+    /// unlike a `Weak<T>`.
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let trc = Trc::new(100);
+    /// let shared = SharedTrc::from_trc(&trc);
+    /// ```
+    pub fn from_trc(trc: &Trc<T>) -> Self {
         sum_value(&unsafe { trc.shared.as_ref() }.atomicref, 1);
-        SharedTrcWrapper { data: trc.shared }
+        SharedTrc { data: trc.shared }
     }
 
-    pub fn to_trc(this: SharedTrcWrapper<T>) -> Trc<T> {
+    /// Convert a `SharedTrc<T>` to a `Trc<T>`. To prevent memory leaks, this function takes
+    /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it 
+    /// prevents the data from being dropped.
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let trc = Trc::new(100);
+    /// let shared = SharedTrc::from_trc(&trc);
+    /// drop(trc);
+    /// let trc2 = SharedTrc::to_trc(shared);
+    /// ```
+    pub fn to_trc(this: Self) -> Trc<T> {
         let tbx = Box::new(1);
         let res = Trc {
             threadref: NonNull::from(Box::leak(tbx)),
@@ -156,7 +180,7 @@ impl<T> SharedTrc<T> {
     }
 }
 
-impl<T> Drop for SharedTrcWrapper<T> {
+impl<T> Drop for SharedTrc<T> {
     #[inline]
     #[cfg(any(
         all(not(target_has_atomic = "ptr"), feature = "default"),
@@ -204,9 +228,37 @@ impl<T> Drop for SharedTrcWrapper<T> {
     }
 }
 
-impl<T> From<SharedTrcWrapper<T>> for Trc<T> {
-    fn from(value: SharedTrcWrapper<T>) -> Self {
+impl<T> From<SharedTrc<T>> for Trc<T> {
+    /// Convert a `SharedTrc<T>` to a `Trc<T>`. To prevent memory leaks, this function takes
+    /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it 
+    /// prevents the data from being dropped.
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let trc = Trc::new(100);
+    /// let shared = SharedTrc::from_trc(&trc);
+    /// drop(trc);
+    /// let trc2 = SharedTrc::to_trc(shared);
+    /// ```
+    fn from(value: SharedTrc<T>) -> Self {
         SharedTrc::to_trc(value)
+    }
+}
+
+impl<T> From<&Trc<T>> for SharedTrc<T> {
+    /// Convert a `Trc<T>` to a `SharedTrc<T>`, incrementing it's atomic reference count.
+    /// While this `SharedTrc<T>` is alive, the data contained by `Trc<T>` will not be dropped, which is
+    /// unlike a `Weak<T>`.
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let trc = Trc::new(100);
+    /// let shared = SharedTrc::from_trc(&trc);
+    /// ```
+    fn from(value: &Trc<T>) -> Self {
+        SharedTrc::from_trc(value)
     }
 }
 
@@ -288,7 +340,7 @@ impl<T> Trc<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     pub fn new(value: T) -> Self {
-        let shareddata = SharedTrc {
+        let shareddata = SharedTrcInternal {
             atomicref: AtomicUsize::new(1),
             weakcount: AtomicUsize::new(0),
             data: value,
@@ -353,14 +405,14 @@ impl<T> Trc<T> {
     where
         F: FnOnce(&Weak<T>) -> T,
     {
-        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrc {
+        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrcInternal {
             atomicref: AtomicUsize::new(0),
             weakcount: AtomicUsize::new(0),
             data: std::mem::MaybeUninit::<T>::uninit(),
         }))
         .into();
 
-        let init_ptr: NonNull<SharedTrc<T>> = shareddata.cast();
+        let init_ptr: NonNull<SharedTrcInternal<T>> = shareddata.cast();
 
         let weak: Weak<_> = Weak { data: init_ptr };
 
@@ -590,7 +642,7 @@ impl<T> Trc<T> {
     /// println!("{}", Trc::as_ptr(&trc) as usize)
     /// ```
     #[inline]
-    pub fn as_ptr(this: &Self) -> *mut SharedTrc<T> {
+    pub fn as_ptr(this: &Self) -> *mut SharedTrcInternal<T> {
         this.shared.as_ptr()
     }
 
@@ -963,7 +1015,7 @@ impl<T: PartialEq> PartialEq for Trc<T> {
 /// ```
 ///
 pub struct Weak<T> {
-    data: NonNull<SharedTrc<T>>, //Use this data because it has the ptr
+    data: NonNull<SharedTrcInternal<T>>, //Use this data because it has the ptr
 }
 
 impl<T> Weak<T> {
