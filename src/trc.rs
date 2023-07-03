@@ -220,7 +220,7 @@ impl<T> Drop for SharedTrc<T> {
 
         let atomic = unsafe { self.data.as_mut() }
             .atomicref
-            .load(std::sync::atomic::Ordering::Acquire);
+            .load(std::sync::atomic::Ordering::Relaxed);
 
         if atomic == 0 {
             unsafe { Box::from_raw(self.data.as_ptr()) };
@@ -291,7 +291,7 @@ fn sum_value<T: std::ops::AddAssign<usize>>(value: &RwLock<T>, offset: usize) {
     all(target_has_atomic = "ptr", feature = "force_atomic")
 ))]
 fn sum_value(value: &AtomicUsize, offset: usize) {
-    value.fetch_add(offset, std::sync::atomic::Ordering::AcqRel);
+    value.fetch_add(offset, std::sync::atomic::Ordering::Relaxed);
 }
 
 #[cfg(any(
@@ -323,7 +323,7 @@ fn sub_value<T: std::ops::SubAssign<usize>>(value: &RwLock<T>, offset: usize) {
     all(target_has_atomic = "ptr", feature = "force_atomic")
 ))]
 fn sub_value(value: &AtomicUsize, offset: usize) {
-    value.fetch_sub(offset, std::sync::atomic::Ordering::AcqRel);
+    value.fetch_sub(offset, std::sync::atomic::Ordering::Relaxed);
 }
 
 impl<T> Trc<T> {
@@ -560,7 +560,7 @@ impl<T> Trc<T> {
     pub fn atomic_count(this: &Self) -> usize {
         unsafe { this.shared.as_ref() }
             .atomicref
-            .load(std::sync::atomic::Ordering::Acquire)
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of `Trc<T>`.
@@ -618,7 +618,7 @@ impl<T> Trc<T> {
     pub fn weak_count(this: &Self) -> usize {
         unsafe { this.shared.as_ref() }
             .weakcount
-            .load(std::sync::atomic::Ordering::Acquire)
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Checks if the other `Trc<T>` is equal to this one according to their internal pointers.
@@ -752,10 +752,10 @@ impl<T> Drop for Trc<T> {
             sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1);
             let weak = unsafe { self.shared.as_mut() }
                 .weakcount
-                .load(std::sync::atomic::Ordering::Acquire);
+                .load(std::sync::atomic::Ordering::Relaxed);
             let atomic = unsafe { self.shared.as_mut() }
                 .atomicref
-                .load(std::sync::atomic::Ordering::Acquire);
+                .load(std::sync::atomic::Ordering::Relaxed);
             if weak == 0 && atomic == 0 {
                 unsafe { Box::from_raw(self.threadref.as_ptr()) };
                 unsafe { std::ptr::drop_in_place(self.shared.as_ptr()) };
@@ -1131,7 +1131,7 @@ impl<T> Weak<T> {
     pub fn to_trc(this: &Self) -> Option<Trc<T>> {
         if unsafe { this.data.as_ref() }
             .atomicref
-            .load(std::sync::atomic::Ordering::Acquire)
+            .load(std::sync::atomic::Ordering::Relaxed)
             == 0
         {
             return None;
