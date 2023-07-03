@@ -5,7 +5,7 @@
 ![Docs status](https://github.com/EricLBuehler/trc/actions/workflows/docs.yml/badge.svg)
 ![Tests status](https://github.com/EricLBuehler/trc/actions/workflows/tests.yml/badge.svg)
 
-`Trc` is a biased reference-counted smart pointer for Rust that allows for interior mutability.
+`Trc` is a performant biased reference-counted smart pointer for Rust.
 `Trc<T>` is a heap-allocated smart pointer for sharing data across threads is a thread-safe manner without putting locks on the data.
 `Trc<T>` stands for: Thread Reference Counted.
 `Trc<T>` provides a shared ownership of the data similar to `Arc<T>` and `Rc<T>`.
@@ -83,3 +83,26 @@ handle.join().unwrap();
 println!("{}", *trc);
 assert_eq!(*trc, 200);
 ```
+
+## Benchmarks
+### Clone
+| Type | Average time (100000x) |
+| --- | ----------- |
+| Trc | 38.154ns |
+| Arc | 56.3ns |
+| Rc | 50.26ns |
+
+Trc: 1.48x faster than Arc for Clone
+
+Trc: 1.31x faster than Rc for Clone
+
+### Deref
+| Type | Average time (100000x) |
+| --- | ----------- |
+| Trc | 27.213ns |
+| Arc | 27.685ns |
+| Rc | 27.667ns |
+
+Trc: 1.02x faster than Arc for Deref
+
+Trc: 1.02x faster than Rc for Deref
