@@ -156,7 +156,7 @@ impl<T> SharedTrc<T> {
     }
 
     /// Convert a `SharedTrc<T>` to a `Trc<T>`. To prevent memory leaks, this function takes
-    /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it 
+    /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it
     /// prevents the data from being dropped.
     /// ```
     /// use trc::Trc;
@@ -174,7 +174,7 @@ impl<T> SharedTrc<T> {
             shared: this.data,
         };
         std::mem::forget(this);
-        return res;
+        res
     }
 }
 
@@ -228,7 +228,7 @@ impl<T> Drop for SharedTrc<T> {
 
 impl<T> From<SharedTrc<T>> for Trc<T> {
     /// Convert a `SharedTrc<T>` to a `Trc<T>`. To prevent memory leaks, this function takes
-    /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it 
+    /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it
     /// prevents the data from being dropped.
     /// ```
     /// use trc::Trc;
@@ -486,7 +486,7 @@ impl<T> Trc<T> {
     /// ```
     #[inline]
     pub fn local_refcount(this: &Self) -> usize {
-        unsafe { this.threadref.as_ref() }.clone()
+        *unsafe { this.threadref.as_ref() }
     }
 
     /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc<T>`.
@@ -651,6 +651,13 @@ impl<T> Trc<T> {
     }
 
     /// Get a &mut reference to the internal data.
+    /// 
+    /// # Safety
+    /// This function is unsafe because it can open up the possibility of UB if the programmer uses it
+    /// improperly in a threaded enviornment, tht is if there are concurrent writes.
+    /// 
+    /// - While this reference exists, there must be no other reads or writes.
+    /// 
     /// ```
     /// use trc::Trc;
     /// use std::ops::DerefMut;
@@ -712,8 +719,6 @@ impl<T> Drop for Trc<T> {
                 }
             }
             let weakdata = readlock.unwrap();
-
-
 
             let mut readlock = unsafe { self.shared.as_ref() }.atomicref.try_read();
 
@@ -1032,9 +1037,7 @@ impl<T> Weak<T> {
     ))]
     pub fn from_trc(trc: &Trc<T>) -> Self {
         sum_value(&unsafe { trc.shared.as_ref() }.weakcount, 1);
-        Weak {
-            data: trc.shared,
-        }
+        Weak { data: trc.shared }
     }
 
     /// Create a `Weak<T>` from a `Trc<T>`. This increments the weak count.

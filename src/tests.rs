@@ -20,7 +20,7 @@ fn test_singlethreaded() {
     let mut trc = Trc::new(data);
     println!("Deref test! {}", trc.int);
     println!("DerefMut test");
-    (*unsafe { Trc::deref_mut(&mut trc) }).string = String::from("This is also data");
+    unsafe { Trc::deref_mut(&mut trc) }.string = String::from("This is also data");
     println!("Deref test! {}", trc.string);
 }
 
@@ -28,7 +28,7 @@ fn test_singlethreaded() {
 fn test_singlethreaded2() {
     let mut trc = Trc::new(100);
     assert_eq!(*trc, 100);
-    *unsafe { Trc::deref_mut(&mut trc)} = 200;
+    *unsafe { Trc::deref_mut(&mut trc) } = 200;
     assert_eq!(*trc, 200);
 }
 
@@ -65,7 +65,7 @@ fn test_multithread1() {
         let mut trc = SharedTrc::to_trc(shared);
         println!("Thread1 Deref test! {}", trc.int);
         println!("DerefMut test");
-        (*unsafe { Trc::deref_mut(&mut trc) }).string = String::from("This is the new data");
+        unsafe { Trc::deref_mut(&mut trc) }.string = String::from("This is the new data");
     });
     handle.join().unwrap();
     println!(
