@@ -139,6 +139,8 @@ fn test_weak_drop() {
     let trc = Trc::new(100);
     let weak = Weak::from_trc(&trc);
     println!("atomic {}", Trc::atomic_count(&trc));
+    println!("weak {}", Trc::weak_count(&trc));
     drop(trc);
+    println!("DROPPED");
     assert!(Weak::to_trc(&weak).is_none())
 }

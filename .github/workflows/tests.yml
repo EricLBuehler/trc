@@ -23,3 +23,19 @@ jobs:
       run: cargo test --features force_atomic --no-default-features
     - name: Test default
       run: cargo test
+
+  miri:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Miri
+      run:  rustup +nightly component add miri
+    - name: Test lock (no std) with Miri
+      run: cargo +nightly miri test --features force_lock --no-default-features
+    - name: Test lock with Miri
+      run: cargo +nightly miri test --features "force_lock nostd" --no-default-features
+    - name: Test atomic with Miri
+      run: cargo +nightly miri test --features force_atomic --no-default-features
+    - name: Test default with Miri
+      run: cargo +nightly miri test
