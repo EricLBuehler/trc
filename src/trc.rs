@@ -155,7 +155,11 @@ impl<T> SharedTrc<T> {
     /// let shared = SharedTrc::from_trc(&trc);
     /// ```
     pub fn from_trc(trc: &Trc<T>) -> Self {
-        sum_value(&unsafe { trc.shared.as_ref() }.atomicref, 1, std::sync::atomic::Ordering::AcqRel);
+        sum_value(
+            &unsafe { trc.shared.as_ref() }.atomicref,
+            1,
+            std::sync::atomic::Ordering::AcqRel,
+        );
         SharedTrc { data: trc.shared }
     }
 
@@ -192,12 +196,12 @@ impl<T> Drop for SharedTrc<T> {
         use std::ptr::addr_of;
 
         std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
-        let prev = sub_value(unsafe{&(*self.data.as_ptr()).atomicref}, 1);
-        let prev_weak = sub_value(unsafe{&(*self.data.as_ptr()).weakcount}, 0);
-        
+        let prev = sub_value(unsafe { &(*self.data.as_ptr()).atomicref }, 1);
+        let prev_weak = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 0);
+
         if prev == 1 && prev_weak == 1 {
             unsafe { std::ptr::read(addr_of!((*self.data.as_ptr()).data)) };
-            Weak {data: self.data};
+            Weak { data: self.data };
         }
     }
 
@@ -210,12 +214,12 @@ impl<T> Drop for SharedTrc<T> {
         use std::ptr::addr_of;
 
         std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
-        let prev = sub_value(unsafe{&(*self.data.as_ptr()).atomicref}, 1);
-        let prev_weak = sub_value(unsafe{&(*self.data.as_ptr()).weakcount}, 0);
-        
+        let prev = sub_value(unsafe { &(*self.data.as_ptr()).atomicref }, 1);
+        let prev_weak = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 0);
+
         if prev == 1 && prev_weak == 1 {
             unsafe { std::ptr::read(addr_of!((*self.data.as_ptr()).data)) };
-            Weak {data: self.data};
+            Weak { data: self.data };
         }
     }
 }
@@ -417,7 +421,11 @@ impl<T> Trc<T> {
         unsafe {
             let ptr = init_ptr.as_ptr();
             std::ptr::write(std::ptr::addr_of_mut!((*ptr).data), data);
-            sum_value(&init_ptr.as_ref().atomicref, 1, std::sync::atomic::Ordering::AcqRel);
+            sum_value(
+                &init_ptr.as_ref().atomicref,
+                1,
+                std::sync::atomic::Ordering::AcqRel,
+            );
         }
 
         let tbx = Box::new(1);
@@ -428,7 +436,7 @@ impl<T> Trc<T> {
         }
     }
 
-     /// Creates a new cyclic `Trc<T>` from the provided data. It allows the storage of `Weak<T>` which points the the allocation
+    /// Creates a new cyclic `Trc<T>` from the provided data. It allows the storage of `Weak<T>` which points the the allocation
     /// of `Trc<T>`inside of `T`. Holding a `Trc<T>` inside of `T` would cause a memory leak. This method works around this by
     /// providing a `Weak<T>` during the consturction of the `Trc<T>`, so that the `T` can store the `Weak<T>` internally.
     /// ```
@@ -474,7 +482,6 @@ impl<T> Trc<T> {
             shared: init_ptr,
         }
     }
-
 
     /// Return the local thread reference count of the object, which is how many `Trc<T>`s in this thread point to the data referenced by this `Trc<T>`.
     /// ```
@@ -701,15 +708,15 @@ impl<T> Drop for Trc<T> {
     ))]
     fn drop(&mut self) {
         use std::ptr::addr_of;
-        
+
         *unsafe { self.threadref.as_mut() } -= 1;
 
         if *unsafe { self.threadref.as_ref() } == 0 {
             let prev = sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1);
-            
+
             if prev == 1 {
                 unsafe { std::ptr::read(addr_of!((*self.shared.as_ptr()).data)) };
-                Weak {data: self.shared};
+                Weak { data: self.shared };
             }
             unsafe { Box::from_raw(self.threadref.as_ptr()) };
         }
@@ -728,7 +735,7 @@ impl<T> Drop for Trc<T> {
             let prev = sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1);
             if prev == 1 {
                 unsafe { std::ptr::read(addr_of!((*self.shared.as_ptr()).data)) };
-                Weak {data: self.shared};
+                Weak { data: self.shared };
             }
             unsafe { Box::from_raw(self.threadref.as_ptr()) };
         }
@@ -1001,26 +1008,29 @@ impl<T> Drop for Weak<T> {
     ))]
     fn drop(&mut self) {
         use std::alloc::Layout;
-        let prev = sub_value(unsafe { &(*self.data.as_ptr()).weakcount}, 1);
-        
-        let mut readlock = unsafe{&(*self.data.as_ptr()).atomicref}.try_read();
+        let prev = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 1);
+
+        let mut readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
 
         #[cfg(not(feature = "nostd"))]
         {
             while readlock.is_err() {
-                readlock = unsafe{&(*self.data.as_ptr()).atomicref}.try_read();
+                readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
             }
         }
         #[cfg(feature = "nostd")]
         {
             while readlock.is_none() {
-                readlock = unsafe{&(*self.data.as_ptr()).atomicref}.try_read();
+                readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
             }
         }
         let atomicdata = (*readlock.as_ref().unwrap()).clone();
         drop(readlock);
         if prev == 1 && atomicdata == 0 {
-            let (size, align) = (std::mem::size_of::<SharedTrcInternal<T>>(), std::mem::align_of::<SharedTrcInternal<T>>());
+            let (size, align) = (
+                std::mem::size_of::<SharedTrcInternal<T>>(),
+                std::mem::align_of::<SharedTrcInternal<T>>(),
+            );
             let layout = unsafe { Layout::from_size_align_unchecked(size, align) };
             unsafe { std::alloc::dealloc(self.data.as_ptr().cast(), layout) };
         }
@@ -1033,13 +1043,16 @@ impl<T> Drop for Weak<T> {
     ))]
     fn drop(&mut self) {
         use std::alloc::Layout;
-        let prev = sub_value(unsafe { &(*self.data.as_ptr()).weakcount}, 1);
-        
-        let atomic = unsafe{&(*self.data.as_ptr()).atomicref}
-            .load(std::sync::atomic::Ordering::Acquire);
+        let prev = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 1);
+
+        let atomic =
+            unsafe { &(*self.data.as_ptr()).atomicref }.load(std::sync::atomic::Ordering::Acquire);
 
         if prev == 1 && atomic == 0 {
-            let (size, align) = (std::mem::size_of::<SharedTrcInternal<T>>(), std::mem::align_of::<SharedTrcInternal<T>>());
+            let (size, align) = (
+                std::mem::size_of::<SharedTrcInternal<T>>(),
+                std::mem::align_of::<SharedTrcInternal<T>>(),
+            );
             let layout = unsafe { Layout::from_size_align_unchecked(size, align) };
             unsafe { std::alloc::dealloc(self.data.as_ptr().cast(), layout) };
         }
@@ -1081,7 +1094,11 @@ impl<T> Weak<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     pub fn from_trc(trc: &Trc<T>) -> Self {
-        sum_value(&unsafe { trc.shared.as_ref() }.weakcount, 1, std::sync::atomic::Ordering::AcqRel);
+        sum_value(
+            &unsafe { trc.shared.as_ref() }.weakcount,
+            1,
+            std::sync::atomic::Ordering::AcqRel,
+        );
         Weak { data: trc.shared }
     }
 
@@ -1161,7 +1178,11 @@ impl<T> Weak<T> {
             return None;
         }
 
-        sum_value(&unsafe { this.data.as_ref() }.atomicref, 1, std::sync::atomic::Ordering::AcqRel);
+        sum_value(
+            &unsafe { this.data.as_ref() }.atomicref,
+            1,
+            std::sync::atomic::Ordering::AcqRel,
+        );
 
         let tbx = Box::new(1);
 
@@ -1185,8 +1206,12 @@ impl<T> Clone for Weak<T> {
     /// ```
     #[inline]
     fn clone(&self) -> Self {
-        let prev = sum_value(&unsafe { self.data.as_ref() }.weakcount, 1, std::sync::atomic::Ordering::Relaxed);
-        
+        let prev = sum_value(
+            &unsafe { self.data.as_ref() }.weakcount,
+            1,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+
         if prev > MAX_REFCOUNT {
             panic!("Overflow of maximum weak reference count.");
         }

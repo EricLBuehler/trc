@@ -7,27 +7,27 @@ use trc::Trc;
 //cargo criterion
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("Clone Trc", |b| b.iter(|| clone_trc()));
-    c.bench_function("Clone Arc", |b| b.iter(|| clone_arc()));
-    c.bench_function("Clone Rc", |b| b.iter(|| clone_rc()));
-    c.bench_function("Deref Trc", |b| b.iter(|| deref_trc()));
-    c.bench_function("Deref Arc", |b| b.iter(|| deref_arc()));
-    c.bench_function("Deref Rc", |b| b.iter(|| deref_rc()));
+    c.bench_function("Clone Trc", |b| b.iter(clone_trc));
+    c.bench_function("Clone Arc", |b| b.iter(clone_arc));
+    c.bench_function("Clone Rc", |b| b.iter(clone_rc));
+    c.bench_function("Deref Trc", |b| b.iter(deref_trc));
+    c.bench_function("Deref Arc", |b| b.iter(deref_arc));
+    c.bench_function("Deref Rc", |b| b.iter(deref_rc));
 }
 
 fn clone_trc() {
     let trc = Trc::new(100);
-    let _ = black_box(trc.clone());
+    let _ = black_box(trc);
 }
 
 fn clone_arc() {
     let arc = Arc::new(100);
-    let _ = black_box(arc.clone());
+    let _ = black_box(arc);
 }
 
 fn clone_rc() {
     let rc = Rc::new(100);
-    let _ = black_box(rc.clone());
+    let _ = black_box(rc);
 }
 
 fn deref_trc() {
