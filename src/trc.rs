@@ -154,6 +154,31 @@ impl<T> SharedTrc<T> {
     /// let trc = Trc::new(100);
     /// let shared = SharedTrc::from_trc(&trc);
     /// ```
+    #[inline]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
+    pub fn from_trc(trc: &Trc<T>) -> Self {
+        sum_value(&unsafe { trc.shared.as_ref() }.atomicref, 1);
+        SharedTrc { data: trc.shared }
+    }
+
+    /// Convert a `Trc<T>` to a `SharedTrc<T>`, incrementing it's atomic reference count.
+    /// While this `SharedTrc<T>` is alive, the data contained by `Trc<T>` will not be dropped, which is
+    /// unlike a `Weak<T>`.
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let trc = Trc::new(100);
+    /// let shared = SharedTrc::from_trc(&trc);
+    /// ```
+    #[inline]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     pub fn from_trc(trc: &Trc<T>) -> Self {
         sum_value(
             &unsafe { trc.shared.as_ref() }.atomicref,
@@ -1205,6 +1230,35 @@ impl<T> Clone for Weak<T> {
     /// assert_eq!(Trc::weak_count(&trc), 3);
     /// ```
     #[inline]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
+    fn clone(&self) -> Self {
+        let prev = sum_value(&unsafe { self.data.as_ref() }.weakcount, 1);
+
+        if prev > MAX_REFCOUNT {
+            panic!("Overflow of maximum weak reference count.");
+        }
+
+        Weak { data: self.data }
+    }
+
+    /// Clone a `Weak<T>` (increment the weak count).
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    ///
+    /// let trc = Trc::new(100);
+    /// let weak1 = Weak::from_trc(&trc);
+    /// let weak2 = weak1.clone();
+    /// assert_eq!(Trc::weak_count(&trc), 3);
+    /// ```
+    #[inline]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
     fn clone(&self) -> Self {
         let prev = sum_value(
             &unsafe { self.data.as_ref() }.weakcount,
