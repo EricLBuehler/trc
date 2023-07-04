@@ -780,11 +780,7 @@ impl<T> Clone for Trc<T> {
     #[inline]
 
     fn clone(&self) -> Self {
-        unsafe { *self.threadref.as_ptr() += 1 };
-
-        if unsafe { *self.threadref.as_ptr() } > MAX_REFCOUNT {
-            panic!("Overflow of maximum thread reference count.");
-        }
+        unsafe { *self.threadref.as_ptr() += 1 }
 
         Trc {
             shared: self.shared,
