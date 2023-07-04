@@ -91,21 +91,13 @@ Benchmarks are conducted by Criterion.
 ### Clone
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 33.255ns |
-| Arc | 35.182ns |
-| Rc | 14.354ns |
-
-Trc: 1.06x faster than Arc for Clone
-
-Trc: 2.32x slower than Rc for Clone
+| Trc | 40.462ns |
+| Arc | 24.998ns |
+| Rc | 12.354ns |
 
 ### Deref
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 28.466ns |
-| Arc | 25.976ns |
-| Rc | 11.009ns |
-
-Trc: 1.1x slower than Arc for Deref
-
-Trc: 2.59x slower than Rc for Deref
+| Trc | 28.549ns |
+| Arc | 26.859ns |
+| Rc | 12.856ns |
