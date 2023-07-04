@@ -87,8 +87,9 @@ assert_eq!(*trc, 200);
 ```
 
 ## Benchmarks
+Benchmarks are conducted by Criterion.
 ### Clone
-| Type | Average time (100000x) |
+| Type | Mean time |
 | --- | ----------- |
 | Trc | 33.255ns |
 | Arc | 35.182ns |
@@ -99,7 +100,7 @@ Trc: 1.06x faster than Arc for Clone
 Trc: 2.32x slower than Rc for Clone
 
 ### Deref
-| Type | Average time (100000x) |
+| Type | Mean time |
 | --- | ----------- |
 | Trc | 28.466ns |
 | Arc | 25.976ns |
@@ -107,4 +108,4 @@ Trc: 2.32x slower than Rc for Clone
 
 Trc: 1.1x slower than Arc for Deref
 
-Trc: 2.59x faster than Rc for Deref
+Trc: 2.59x slower than Rc for Deref
