@@ -90,7 +90,6 @@ Benchmarks via Criterion. As can be seen, `Trc`'s performance realy shines when 
 The reason `Trc` does not do as well for fewer operations is because it needs to allocate `n+1` blocks of memory for `n` threads, and
 so for 1 thread, there are 2 allocations. However, after allocations, `Trc` performs very well - 3.77x `Arc` for Clones. 
 
-
 ### Clone
 | Type | Mean time |
 | --- | ----------- |
