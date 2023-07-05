@@ -86,17 +86,35 @@ assert_eq!(*trc, 200);
 ```
 
 ## Benchmarks
-Benchmarks are conducted by Criterion.
+Benchmarks via Criterion. As can be seen, `Trc`'s performance realy shines when there are many Clones.
+The reason `Trc` does not do as well for fewer operations is because it needs to allocate `n+1` blocks of memory for `n` threads, and
+so for 1 thread, there are 2 allocations. However, after allocations, `Trc` performs very well - 3.77x `Arc` for Clones. 
+
+
 ### Clone
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 36.304s |
-| Arc | 30.096ns |
-| Rc | 12.073ns |
+| Trc | 40.927ms |
+| Arc | 40.204ns |
+| Rc | 14.939ns |
+
+### Multiple Clone (100 times)
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 362.850ns |
+| Arc | 1366.500ns |
+| Rc | 324.830ns |
 
 ### Deref
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 25.643ns |
-| Arc | 24.441ns |
-| Rc | 11.422ns |
+| Trc | 27.284ns |
+| Arc | 26.012ns |
+| Rc | 12.554ns |
+
+### Multiple Deref (100xs)
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 58.464ns |
+| Arc | 57.631ns |
+| Rc | 46.272ns |
