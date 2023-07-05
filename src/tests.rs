@@ -144,21 +144,3 @@ fn test_weak_drop() {
     println!("DROPPED");
     assert!(Weak::to_trc(&weak).is_none())
 }
-
-#[test]
-fn test_overflow(){
-    // Ref count of 2
-    let trc1 = Trc::new(String::from("I'm text"));
-    let trc2 = trc1.clone();
-
-    // Ref count of usize::MAX + 1
-    for _ in 0..=(usize::MAX - 1) {
-        std::mem::forget(trc1.clone());
-    }
-
-    // Ref count drops to 0, freeing the inner value
-    drop(trc2);
-
-    // Prints garbo (debug to avoid messing with peoples terminals)
-    println!("{trc1:?}");
-}

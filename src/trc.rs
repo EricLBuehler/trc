@@ -702,7 +702,7 @@ impl<T> Drop for Trc<T> {
                 unsafe { std::ptr::read(addr_of!((*self.shared.as_ptr()).data)) };
                 Weak { data: self.shared };
             }
-            unsafe { Box::from_raw(self.threadref.as_ptr()) };
+            drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
         }
     }
 
@@ -721,7 +721,7 @@ impl<T> Drop for Trc<T> {
                 unsafe { std::ptr::read(addr_of!((*self.shared.as_ptr()).data)) };
                 Weak { data: self.shared };
             }
-            unsafe { Box::from_raw(self.threadref.as_ptr()) };
+            drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
         }
     }
 }
