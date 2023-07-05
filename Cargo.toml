@@ -11,14 +11,10 @@ repository = "https://github.com/EricLBuehler/trc"
 keywords = ["reference-counted", "thread-safe", "smart-pointer", "memory"]
 categories = ["memory-management", "data-structures", "concurrency"]
 
-[dependencies]
-spin = {version="0.9.8", optional = true}
-
 [features]
 default = []
-nostd = []
 force_atomic = []
-force_lock = ["spin/rwlock"]
+force_lock = []
 
 [dev-dependencies]
 criterion = "0.5.1"

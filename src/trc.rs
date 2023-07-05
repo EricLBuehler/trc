@@ -10,17 +10,14 @@ use core::{
     ptr::NonNull,
 };
 
-#[cfg(any(
-    all(not(target_has_atomic = "ptr"), feature = "default"),
-    all(feature = "force_lock", not(feature = "nostd"))
-))]
-use std::sync::RwLock;
+#[cfg(all(not(target_has_atomic = "ptr"), feature = "force_atomic"))]
+compile_error!("Cannot use feature \"force_atomic\" on a system without atomics.");
 
 #[cfg(any(
     all(not(target_has_atomic = "ptr"), feature = "default"),
-    all(feature = "force_lock", feature = "nostd")
+    all(feature = "force_lock")
 ))]
-use spin::rwlock::RwLock;
+use std::sync::RwLock;
 
 #[cfg(any(
     all(target_has_atomic = "ptr", feature = "default"),
@@ -289,18 +286,8 @@ impl<T> From<&Trc<T>> for SharedTrc<T> {
 ))]
 fn sum_value(value: &RwLock<usize>, offset: usize) -> usize {
     let mut writelock = value.try_write();
-
-    #[cfg(not(feature = "nostd"))]
-    {
-        while writelock.is_err() {
-            writelock = value.try_write();
-        }
-    }
-    #[cfg(feature = "nostd")]
-    {
-        while writelock.is_none() {
-            writelock = value.try_write();
-        }
+    while writelock.is_err() {
+        writelock = value.try_write();
     }
     let mut writedata = writelock.unwrap();
 
@@ -323,18 +310,8 @@ fn sum_value(value: &AtomicUsize, offset: usize, ordering: std::sync::atomic::Or
 ))]
 fn sub_value(value: &RwLock<usize>, offset: usize) -> usize {
     let mut writelock = value.try_write();
-
-    #[cfg(not(feature = "nostd"))]
-    {
-        while writelock.is_err() {
-            writelock = value.try_write();
-        }
-    }
-    #[cfg(feature = "nostd")]
-    {
-        while writelock.is_none() {
-            writelock = value.try_write();
-        }
+    while writelock.is_err() {
+        writelock = value.try_write();
     }
     let mut writedata = writelock.unwrap();
 
@@ -546,18 +523,8 @@ impl<T> Trc<T> {
     ))]
     pub fn atomic_count(this: &Self) -> usize {
         let mut readlock = unsafe { this.shared.as_ref() }.atomicref.try_read();
-
-        #[cfg(not(feature = "nostd"))]
-        {
-            while readlock.is_err() {
-                readlock = unsafe { this.shared.as_ref() }.atomicref.try_read();
-            }
-        }
-        #[cfg(feature = "nostd")]
-        {
-            while readlock.is_none() {
-                readlock = unsafe { this.shared.as_ref() }.atomicref.try_read();
-            }
+        while readlock.is_err() {
+            readlock = unsafe { this.shared.as_ref() }.atomicref.try_read();
         }
         *readlock.unwrap()
     }
@@ -612,18 +579,8 @@ impl<T> Trc<T> {
     ))]
     pub fn weak_count(this: &Self) -> usize {
         let mut readlock = unsafe { this.shared.as_ref() }.weakcount.try_read();
-
-        #[cfg(not(feature = "nostd"))]
-        {
-            while readlock.is_err() {
-                readlock = unsafe { this.shared.as_ref() }.weakcount.try_read();
-            }
-        }
-        #[cfg(feature = "nostd")]
-        {
-            while readlock.is_none() {
-                readlock = unsafe { this.shared.as_ref() }.weakcount.try_read();
-            }
+        while readlock.is_err() {
+            readlock = unsafe { this.shared.as_ref() }.weakcount.try_read();
         }
         *readlock.unwrap()
     }
@@ -1032,18 +989,8 @@ impl<T> Drop for Weak<T> {
         let prev = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 1);
 
         let mut readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
-
-        #[cfg(not(feature = "nostd"))]
-        {
-            while readlock.is_err() {
-                readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
-            }
-        }
-        #[cfg(feature = "nostd")]
-        {
-            while readlock.is_none() {
-                readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
-            }
+        while readlock.is_err() {
+            readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
         }
         let atomicdata = (*readlock.as_ref().unwrap()).clone();
         drop(readlock);
@@ -1143,18 +1090,8 @@ impl<T> Weak<T> {
     ))]
     pub fn to_trc(this: &Self) -> Option<Trc<T>> {
         let mut writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
-
-        #[cfg(not(feature = "nostd"))]
-        {
-            while writelock.is_err() {
-                writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
-            }
-        }
-        #[cfg(feature = "nostd")]
-        {
-            while writelock.is_none() {
-                writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
-            }
+        while writelock.is_err() {
+            writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
         }
         let mut writedata = writelock.unwrap();
 

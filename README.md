@@ -21,8 +21,7 @@ must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (w
 To soundly implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`]. However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across threads. See `SharedTrc` for it's API, which is similar to that of `Weak`.
 
 `Trc` will automatically compile to use either locks or atomics, depending on the system. By default, `Trc` uses `std`.
-However, `Trc` can be compiled without `std`. When compiling withput `std`, locks and atomics are still available, and will be automatically compiled
-depending on the system. This is enabled using the `nostd` feature. Compilation with locks or atomics can be forced with a feature flag.
+However, `Trc` can be compiled without `std`. Compilation with locks or atomics can be forced with a feature flag.
 
 ## Examples
 

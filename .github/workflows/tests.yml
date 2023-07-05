@@ -15,10 +15,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Test lock (no std)
-      run: cargo test --features force_lock --no-default-features
     - name: Test lock
-      run: cargo test --features "force_lock nostd" --no-default-features
+      run: cargo test --features force_lock --no-default-features
     - name: Test atomic
       run: cargo test --features force_atomic --no-default-features
     - name: Test default
@@ -31,10 +29,8 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install Miri
       run:  rustup +nightly component add miri
-    - name: Test lock (no std) with Miri
-      run: cargo +nightly miri test --features force_lock --no-default-features
     - name: Test lock with Miri
-      run: cargo +nightly miri test --features "force_lock nostd" --no-default-features
+      run: cargo +nightly miri test --features force_lock --no-default-features
     - name: Test atomic with Miri
       run: cargo +nightly miri test --features force_atomic --no-default-features
     - name: Test default with Miri
