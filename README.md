@@ -117,3 +117,6 @@ so for 1 thread, there are 2 allocations. However, after allocations, `Trc` perf
 | Trc | 58.464ns |
 | Arc | 57.631ns |
 | Rc | 46.272ns |
+
+## Use
+To use `Trc`, simply run `cargo add trc`, or add `trc = "1.1.18"`. Optionally, you can always use the latest version by adding `trc = {git = "https://github.com/EricLBuehler/trc.git"}`.

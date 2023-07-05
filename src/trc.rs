@@ -711,6 +711,8 @@ impl<T> Drop for Trc<T> {
     ))]
     fn drop(&mut self) {
         use std::ptr::addr_of;
+        
+        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
 
         *unsafe { self.threadref.as_mut() } -= 1;
         if *unsafe { self.threadref.as_ref() } == 0 {
@@ -988,6 +990,7 @@ impl<T> Drop for Weak<T> {
     ))]
     fn drop(&mut self) {
         use std::alloc::Layout;
+
         let prev = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 1);
 
         let mut readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
@@ -1013,6 +1016,9 @@ impl<T> Drop for Weak<T> {
     ))]
     fn drop(&mut self) {
         use std::alloc::Layout;
+        
+        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
+
         let prev = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 1);
 
         let atomic =
