@@ -22,6 +22,3 @@ criterion = "0.5.1"
 [[bench]]
 name = "benchmark"
 harness = false
-
-[dependencies]
-likely_stable = "0.1.2"

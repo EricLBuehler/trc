@@ -25,8 +25,6 @@ use std::sync::RwLock;
 ))]
 use core::sync::atomic::AtomicUsize;
 
-use likely_stable::unlikely;
-
 const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 
 #[repr(C)]
@@ -738,7 +736,8 @@ impl<T> Clone for Trc<T> {
     /// ```
     #[inline(always)]
     fn clone(&self) -> Self {
-        if unlikely(unsafe { *self.threadref.as_ptr() }.wrapping_add(1) == 0) {
+        unsafe { *self.threadref.as_ptr() += 1 };
+        if unsafe { *self.threadref.as_ptr() } > MAX_REFCOUNT {
             std::process::abort()
         }
 
