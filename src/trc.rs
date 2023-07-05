@@ -25,6 +25,8 @@ use std::sync::RwLock;
 ))]
 use core::sync::atomic::AtomicUsize;
 
+use likely_stable::unlikely;
+
 const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 
 #[repr(C)]
@@ -725,7 +727,7 @@ impl<T> Drop for Trc<T> {
 }
 
 impl<T> Clone for Trc<T> {
-    /// Clone a `Trc<T>` (increment it's local reference count). This can only be used to clone an object that will only stay in one thread.
+    /// Clone a `Trc<T>` (increment it's local reference count).
     /// It will panic if the local reference count overflows.
     /// ```
     /// use trc::Trc;
@@ -734,10 +736,11 @@ impl<T> Clone for Trc<T> {
     /// let trc2 = trc.clone();
     /// assert_eq!(Trc::local_refcount(&trc), Trc::local_refcount(&trc2));
     /// ```
-    #[inline]
-
+    #[inline(always)]
     fn clone(&self) -> Self {
-        unsafe { *self.threadref.as_ptr() += 1 }
+        if unlikely(unsafe { *self.threadref.as_ptr() }.wrapping_add(1) == 0) {
+            std::process::abort()
+        }
 
         Trc {
             shared: self.shared,

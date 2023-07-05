@@ -90,13 +90,13 @@ Benchmarks are conducted by Criterion.
 ### Clone
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 37.822ns |
-| Arc | 24.450ns |
-| Rc | 14.084ns |
+| Trc | 36.304s |
+| Arc | 30.096ns |
+| Rc | 12.073ns |
 
 ### Deref
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 27.083ns |
-| Arc | 25.114ns |
-| Rc | 11.911ns |
+| Trc | 25.643ns |
+| Arc | 24.441ns |
+| Rc | 11.422ns |
