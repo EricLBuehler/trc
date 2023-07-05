@@ -111,7 +111,7 @@ so for 1 thread, there are 2 allocations. However, after allocations, `Trc` perf
 | Arc | 26.012ns |
 | Rc | 12.554ns |
 
-### Multiple Deref (100times)
+### Multiple Deref (100 times)
 | Type | Mean time |
 | --- | ----------- |
 | Trc | 58.464ns |
