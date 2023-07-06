@@ -214,18 +214,101 @@ impl<T> SharedTrc<T> {
         core::mem::forget(this);
         res
     }
+
+    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc<T>`.
+    /// ```
+    /// use std::thread;
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let trc = Trc::new(100);
+    /// let shared = SharedTrc::from_trc(&trc);
+    ///
+    /// let handle = thread::spawn(move || {
+    ///     assert_eq!(SharedTrc::atomic_count(&shared), 2);
+    ///     let mut trc = SharedTrc::to_trc(shared);
+    ///     *unsafe { Trc::deref_mut(&mut trc)} = 200;
+    /// });
+    ///
+    /// handle.join().unwrap();
+    /// assert_eq!(*trc, 200);
+    /// ```
+    #[inline]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
+    pub fn atomic_count(this: &Self) -> usize {
+        let mut readlock = unsafe { this.data.as_ref() }.atomicref.try_read();
+        while readlock.is_none() {
+            readlock = unsafe { this.data.as_ref() }.atomicref.try_read();
+        }
+        *readlock.unwrap()
+    }
+
+    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc<T>`.
+    /// ```
+    /// use std::thread;
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let trc = Trc::new(100);
+    /// let shared = SharedTrc::from_trc(&trc);
+    ///
+    /// let handle = thread::spawn(move || {
+    ///     assert_eq!(SharedTrc::atomic_count(&shared), 2);
+    ///     let mut trc = SharedTrc::to_trc(shared);
+    ///     *unsafe { Trc::deref_mut(&mut trc)} = 200;
+    /// });
+    ///
+    /// handle.join().unwrap();
+    /// assert_eq!(*trc, 200);
+    /// ```
+    #[inline]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
+    pub fn atomic_count(this: &Self) -> usize {
+        unsafe { this.data.as_ref() }
+            .atomicref
+            .load(core::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 impl<T> Clone for SharedTrc<T> {
     /// Clone a `SharedTrc<T>` (increment the strong count).
     /// ```
     /// use trc::Trc;
-    /// use trc::Weak;
+    /// use trc::SharedTrc;
     ///
     /// let trc = Trc::new(100);
-    /// let weak1 = Weak::from_trc(&trc);
-    /// let weak2 = weak1.clone();
-    /// assert_eq!(Trc::weak_count(&trc), 3);
+    /// let shared1 = SharedTrc::from_trc(&trc);
+    /// let shared2 = shared1.clone();
+    /// assert_eq!(SharedTrc::atomic_count(&shared1), 3);
+    /// ```
+    #[inline]
+    #[cfg(any(
+        all(not(target_has_atomic = "ptr"), feature = "default"),
+        feature = "force_lock"
+    ))]
+    fn clone(&self) -> Self {
+        let prev = sum_value(&unsafe { self.data.as_ref() }.atomicref, 1);
+        if prev > MAX_REFCOUNT {
+            panic!("Overflow of maximum strong reference count.");
+        }
+        SharedTrc { data: self.data }
+    }
+
+    /// Clone a `SharedTrc<T>` (increment the strong count).
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let trc = Trc::new(100);
+    /// let shared1 = SharedTrc::from_trc(&trc);
+    /// let shared2 = shared1.clone();
+    /// assert_eq!(SharedTrc::atomic_count(&shared1), 3);
     /// ```
     #[inline]
     #[cfg(any(
@@ -253,7 +336,7 @@ impl<T> Drop for SharedTrc<T> {
     ))]
     fn drop(&mut self) {
         use core::ptr::addr_of_mut;
-        
+
         let prev = sub_value(unsafe { &(*self.data.as_ptr()).atomicref }, 1);
         let prev_weak = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 0);
 
@@ -1189,26 +1272,32 @@ impl<T> Weak<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     pub fn to_trc(this: &Self) -> Option<Trc<T>> {
-        unsafe { this.data.as_ref() }.atomicref.fetch_update(
-            core::sync::atomic::Ordering::Acquire,
-            core::sync::atomic::Ordering::Relaxed,
-            |n| {
-                // Any write of 0 we can observe leaves the field in permanently zero state.
-                if n == 0 {
-                    return None;
+        unsafe { this.data.as_ref() }
+            .atomicref
+            .fetch_update(
+                core::sync::atomic::Ordering::Acquire,
+                core::sync::atomic::Ordering::Relaxed,
+                |n| {
+                    // Any write of 0 we can observe leaves the field in permanently zero state.
+                    if n == 0 {
+                        return None;
+                    }
+                    // See comments in `Arc::clone` for why we do this (for `mem::forget`).
+                    assert!(
+                        n <= MAX_REFCOUNT,
+                        "Overflow of maximum strong reference count."
+                    );
+                    Some(n + 1)
+                },
+            )
+            .ok()
+            .map(|_| {
+                let tbx = Box::new(1);
+                Trc {
+                    threadref: NonNull::from(Box::leak(tbx)),
+                    shared: this.data,
                 }
-                // See comments in `Arc::clone` for why we do this (for `mem::forget`).
-                assert!(n <= MAX_REFCOUNT, "Overflow of maximum strong reference count.");
-                Some(n + 1)
-            },
-        ).ok()
-        .map(|_| {
-            let tbx = Box::new(1);
-            Trc {
-                threadref: NonNull::from(Box::leak(tbx)),
-                shared: this.data,
-            }
-        })
+            })
     }
 }
 
