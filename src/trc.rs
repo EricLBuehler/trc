@@ -1140,25 +1140,25 @@ impl<T> Weak<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     pub fn to_trc(this: &Self) -> Option<Trc<T>> {
-        if unsafe { this.data.as_ref() }
-            .atomicref
-            .load(core::sync::atomic::Ordering::Relaxed)
-            == 0
-        {
-            return None;
-        }
-
-        sum_value(
-            &unsafe { this.data.as_ref() }.atomicref,
-            1,
-            core::sync::atomic::Ordering::AcqRel,
-        );
-
-        let tbx = Box::new(1);
-
-        Some(Trc {
-            threadref: NonNull::from(Box::leak(tbx)),
-            shared: this.data,
+        unsafe { this.data.as_ref() }.atomicref.fetch_update(
+            core::sync::atomic::Ordering::Acquire,
+            core::sync::atomic::Ordering::Relaxed,
+            |n| {
+                // Any write of 0 we can observe leaves the field in permanently zero state.
+                if n == 0 {
+                    return None;
+                }
+                // See comments in `Arc::clone` for why we do this (for `mem::forget`).
+                assert!(n <= MAX_REFCOUNT, "Overflow of maximum strong reference count.");
+                Some(n + 1)
+            },
+        ).ok()
+        .map(|_| {
+            let tbx = Box::new(1);
+            Trc {
+                threadref: NonNull::from(Box::leak(tbx)),
+                shared: this.data,
+            }
         })
     }
 }
