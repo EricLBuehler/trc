@@ -52,7 +52,7 @@ pub struct SharedTrcInternal<T> {
     pub data: T,
 }
 
-/// `Trc<T>` is a heap-allocated smart pointer for sharing data across threads is a thread-safe and performant manner.
+/// `Trc<T>` is a performant heap-allocated smart pointer for Rust that implements a version of biased reference counting.
 /// `Trc<T>` stands for: Thread Reference Counted.
 /// `Trc<T>` provides shared ownership of the data similar to `Arc<T>` and `Rc<T>`. In addition, it also provides interior mutability.
 /// It implements biased reference counting, which is based on the observation that most objects are only used by one thread.
@@ -235,11 +235,17 @@ impl<T> Drop for SharedTrc<T> {
     fn drop(&mut self) {
         use std::ptr::addr_of;
 
-        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
-        let prev = sub_value(unsafe { &(*self.data.as_ptr()).atomicref }, 1);
-        let prev_weak = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 0);
+        if unsafe { &(*self.data.as_ptr()).atomicref }
+            .fetch_sub(1, std::sync::atomic::Ordering::Release)
+            != 1
+        {
+            return;
+        }
 
-        if prev == 1 && prev_weak == 1 {
+        let weak =
+            unsafe { &(*self.data.as_ptr()).weakcount }.load(std::sync::atomic::Ordering::Acquire);
+        if weak == 1 {
+            std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
             unsafe { std::ptr::read(addr_of!((*self.data.as_ptr()).data)) };
             Weak { data: self.data };
         }
@@ -711,17 +717,21 @@ impl<T> Drop for Trc<T> {
     ))]
     fn drop(&mut self) {
         use std::ptr::addr_of;
-        
-        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
 
         *unsafe { self.threadref.as_mut() } -= 1;
         if *unsafe { self.threadref.as_ref() } == 0 {
-            let prev = sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1);
-            if prev == 1 {
-                unsafe { std::ptr::read(addr_of!((*self.shared.as_ptr()).data)) };
-                Weak { data: self.shared };
-            }
             drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
+            if unsafe { self.shared.as_ref() }
+                .atomicref
+                .fetch_sub(1, std::sync::atomic::Ordering::Release)
+                != 1
+            {
+                return;
+            }
+
+            std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
+            unsafe { std::ptr::read(addr_of!((*self.shared.as_ptr()).data)) };
+            Weak { data: self.shared };
         }
     }
 }
@@ -1016,22 +1026,22 @@ impl<T> Drop for Weak<T> {
     ))]
     fn drop(&mut self) {
         use std::alloc::Layout;
+
+        if unsafe { &(*self.data.as_ptr()).weakcount }
+            .fetch_sub(1, std::sync::atomic::Ordering::Release)
+            != 1
+        {
+            return;
+        }
         
         std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
 
-        let prev = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 1);
-
-        let atomic =
-            unsafe { &(*self.data.as_ptr()).atomicref }.load(std::sync::atomic::Ordering::Acquire);
-
-        if prev == 1 && atomic == 0 {
-            let (size, align) = (
-                std::mem::size_of::<SharedTrcInternal<T>>(),
-                std::mem::align_of::<SharedTrcInternal<T>>(),
-            );
-            let layout = unsafe { Layout::from_size_align_unchecked(size, align) };
-            unsafe { std::alloc::dealloc(self.data.as_ptr().cast(), layout) };
-        }
+        let (size, align) = (
+            std::mem::size_of::<SharedTrcInternal<T>>(),
+            std::mem::align_of::<SharedTrcInternal<T>>(),
+        );
+        let layout = unsafe { Layout::from_size_align_unchecked(size, align) };
+        unsafe { std::alloc::dealloc(self.data.as_ptr().cast(), layout) };
     }
 }
 
