@@ -14,7 +14,7 @@ categories = ["memory-management", "data-structures", "concurrency"]
 [features]
 default = []
 force_atomic = []
-force_lock = []
+force_lock = ["async-std"]
 
 [dev-dependencies]
 criterion = "0.5.1"
@@ -22,3 +22,6 @@ criterion = "0.5.1"
 [[bench]]
 name = "benchmark"
 harness = false
+
+[dependencies]
+async-std = {version = "1.12.0", optional = true}

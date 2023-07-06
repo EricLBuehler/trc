@@ -19,7 +19,7 @@ compile_error!("Cannot use feature \"force_atomic\" on a system without atomics.
     all(not(target_has_atomic = "ptr"), feature = "default"),
     all(feature = "force_lock")
 ))]
-use core::sync::RwLock;
+use async_std::sync::RwLock;
 
 #[cfg(any(
     all(target_has_atomic = "ptr", feature = "default"),
@@ -217,7 +217,8 @@ impl<T> Drop for SharedTrc<T> {
         feature = "force_lock"
     ))]
     fn drop(&mut self) {
-        core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+        use core::ptr::addr_of_mut;
+        
         let prev = sub_value(unsafe { &(*self.data.as_ptr()).atomicref }, 1);
         let prev_weak = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 0);
 
@@ -292,7 +293,7 @@ impl<T> From<&Trc<T>> for SharedTrc<T> {
 ))]
 fn sum_value(value: &RwLock<usize>, offset: usize) -> usize {
     let mut writelock = value.try_write();
-    while writelock.is_err() {
+    while writelock.is_none() {
         writelock = value.try_write();
     }
     let mut writedata = writelock.unwrap();
@@ -316,7 +317,7 @@ fn sum_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::O
 ))]
 fn sub_value(value: &RwLock<usize>, offset: usize) -> usize {
     let mut writelock = value.try_write();
-    while writelock.is_err() {
+    while writelock.is_none() {
         writelock = value.try_write();
     }
     let mut writedata = writelock.unwrap();
@@ -529,7 +530,7 @@ impl<T> Trc<T> {
     ))]
     pub fn atomic_count(this: &Self) -> usize {
         let mut readlock = unsafe { this.shared.as_ref() }.atomicref.try_read();
-        while readlock.is_err() {
+        while readlock.is_none() {
             readlock = unsafe { this.shared.as_ref() }.atomicref.try_read();
         }
         *readlock.unwrap()
@@ -585,7 +586,7 @@ impl<T> Trc<T> {
     ))]
     pub fn weak_count(this: &Self) -> usize {
         let mut readlock = unsafe { this.shared.as_ref() }.weakcount.try_read();
-        while readlock.is_err() {
+        while readlock.is_none() {
             readlock = unsafe { this.shared.as_ref() }.weakcount.try_read();
         }
         *readlock.unwrap()
@@ -695,6 +696,7 @@ impl<T> Drop for Trc<T> {
         feature = "force_lock"
     ))]
     fn drop(&mut self) {
+        use core::ptr::addr_of_mut;
         *unsafe { self.threadref.as_mut() } -= 1;
 
         if *unsafe { self.threadref.as_ref() } == 0 {
@@ -1002,7 +1004,7 @@ impl<T> Drop for Weak<T> {
         let prev = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 1);
 
         let mut readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
-        while readlock.is_err() {
+        while readlock.is_none() {
             readlock = unsafe { &(*self.data.as_ptr()).atomicref }.try_read();
         }
         let atomicdata = (*readlock.as_ref().unwrap()).clone();
@@ -1102,7 +1104,7 @@ impl<T> Weak<T> {
     ))]
     pub fn to_trc(this: &Self) -> Option<Trc<T>> {
         let mut writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
-        while writelock.is_err() {
+        while writelock.is_none() {
             writelock = unsafe { this.data.as_ref() }.atomicref.try_write();
         }
         let mut writedata = writelock.unwrap();
