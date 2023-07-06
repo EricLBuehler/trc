@@ -159,7 +159,10 @@ impl<T> SharedTrc<T> {
         feature = "force_lock"
     ))]
     pub fn from_trc(trc: &Trc<T>) -> Self {
-        sum_value(&unsafe { trc.shared.as_ref() }.atomicref, 1);
+        let prev = sum_value(&unsafe { trc.shared.as_ref() }.atomicref, 1);
+        if prev > MAX_REFCOUNT {
+            panic!("Overflow of maximum strong reference count.");
+        }
         SharedTrc { data: trc.shared }
     }
 
@@ -179,11 +182,14 @@ impl<T> SharedTrc<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     pub fn from_trc(trc: &Trc<T>) -> Self {
-        sum_value(
+        let prev = sum_value(
             &unsafe { trc.shared.as_ref() }.atomicref,
             1,
             core::sync::atomic::Ordering::AcqRel,
         );
+        if prev > MAX_REFCOUNT {
+            panic!("Overflow of maximum strong reference count.");
+        }
         SharedTrc { data: trc.shared }
     }
 
@@ -207,6 +213,35 @@ impl<T> SharedTrc<T> {
         };
         core::mem::forget(this);
         res
+    }
+}
+
+impl<T> Clone for SharedTrc<T> {
+    /// Clone a `SharedTrc<T>` (increment the strong count).
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    ///
+    /// let trc = Trc::new(100);
+    /// let weak1 = Weak::from_trc(&trc);
+    /// let weak2 = weak1.clone();
+    /// assert_eq!(Trc::weak_count(&trc), 3);
+    /// ```
+    #[inline]
+    #[cfg(any(
+        all(target_has_atomic = "ptr", feature = "default"),
+        all(target_has_atomic = "ptr", feature = "force_atomic")
+    ))]
+    fn clone(&self) -> Self {
+        let prev = sum_value(
+            &unsafe { self.data.as_ref() }.atomicref,
+            1,
+            core::sync::atomic::Ordering::AcqRel,
+        );
+        if prev > MAX_REFCOUNT {
+            panic!("Overflow of maximum strong reference count.");
+        }
+        SharedTrc { data: self.data }
     }
 }
 
@@ -430,11 +465,14 @@ impl<T> Trc<T> {
         unsafe {
             let ptr = init_ptr.as_ptr();
             core::ptr::write(core::ptr::addr_of_mut!((*ptr).data), data);
-            sum_value(
+            let prev = sum_value(
                 &init_ptr.as_ref().atomicref,
                 1,
                 core::sync::atomic::Ordering::AcqRel,
             );
+            if prev > MAX_REFCOUNT {
+                panic!("Overflow of maximum strong reference count.");
+            }
         }
 
         let tbx = Box::new(1);
@@ -481,7 +519,10 @@ impl<T> Trc<T> {
         unsafe {
             let ptr = init_ptr.as_ptr();
             core::ptr::write(core::ptr::addr_of_mut!((*ptr).data), data);
-            sum_value(&init_ptr.as_ref().atomicref, 1);
+            let prev = sum_value(&init_ptr.as_ref().atomicref, 1);
+            if prev > MAX_REFCOUNT {
+                panic!("Overflow of maximum strong reference count.");
+            }
         }
 
         let tbx = Box::new(1);
@@ -1057,7 +1098,10 @@ impl<T> Weak<T> {
         feature = "force_lock"
     ))]
     pub fn from_trc(trc: &Trc<T>) -> Self {
-        sum_value(&unsafe { trc.shared.as_ref() }.weakcount, 1);
+        let prev = sum_value(&unsafe { trc.shared.as_ref() }.weakcount, 1);
+        if prev > MAX_REFCOUNT {
+            panic!("Overflow of maximum weak reference count.");
+        }
         Weak { data: trc.shared }
     }
 
@@ -1076,11 +1120,14 @@ impl<T> Weak<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     pub fn from_trc(trc: &Trc<T>) -> Self {
-        sum_value(
+        let prev = sum_value(
             &unsafe { trc.shared.as_ref() }.weakcount,
             1,
             core::sync::atomic::Ordering::AcqRel,
         );
+        if prev > MAX_REFCOUNT {
+            panic!("Overflow of maximum weak reference count.");
+        }
         Weak { data: trc.shared }
     }
 
@@ -1184,6 +1231,8 @@ impl<T> Clone for Weak<T> {
     fn clone(&self) -> Self {
         let prev = sum_value(&unsafe { self.data.as_ref() }.weakcount, 1);
 
+        //If an absurd number of threads are created, and then they are aborted before this, UB can
+        //occur if the refcount wraps around.
         if prev > MAX_REFCOUNT {
             panic!("Overflow of maximum weak reference count.");
         }
@@ -1213,6 +1262,8 @@ impl<T> Clone for Weak<T> {
             core::sync::atomic::Ordering::Relaxed,
         );
 
+        //If an absurd number of threads are created, and then they are aborted before this, UB can
+        //occur if the refcount wraps around.
         if prev > MAX_REFCOUNT {
             panic!("Overflow of maximum weak reference count.");
         }
