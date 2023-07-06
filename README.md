@@ -87,35 +87,35 @@ assert_eq!(*trc, 200);
 ## Benchmarks
 Benchmarks via Criterion. As can be seen, `Trc`'s performance realy shines when there are many Clones.
 The reason `Trc` does not do as well for fewer operations is because it needs to allocate `n+1` blocks of memory for `n` threads, and
-so for 1 thread, there are 2 allocations. However, after allocations, `Trc` performs very well - 4.27x `Arc` for Clones. 
+so for 1 thread, there are 2 allocations. However, after the initial allocations, `Trc` performs very well - 3.94x `Arc`'s time for Clones. 
 
 ### Clone
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 35.510ms |
-| Arc | 38.797ns |
-| Rc | 14.321ns |
+| Trc | 35.926ms |
+| Arc | 37.032ns |
+| Rc | 15.866ns |
 
 ### Multiple Clone (100 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 331.490ns |
-| Arc | 1417.400ns |
-| Rc | 319.180ns |
+| Trc | 337.210ns |
+| Arc | 1327.000ns |
+| Rc | 293.71ns |
 
 ### Deref
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 25.504ns |
-| Arc | 25.916ns |
-| Rc | 11.576ns |
+| Trc | 23.613ns |
+| Arc | 23.735ns |
+| Rc | 12.462ns |
 
 ### Multiple Deref (100 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 58.823ns |
-| Arc | 53.466ns |
-| Rc | 46.235ns |
+| Trc | 51.166ns |
+| Arc | 55.585ns |
+| Rc | 41.808ns |
 
 ## Use
 To use `Trc`, simply run `cargo add trc`, or add `trc = "1.1.18"`. Optionally, you can always use the latest version by adding `trc = {git = "https://github.com/EricLBuehler/trc.git"}`.
