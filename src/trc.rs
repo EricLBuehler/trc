@@ -7,7 +7,7 @@ use core::{
     hash::{Hash, Hasher},
     ops::Deref,
     pin::Pin,
-    ptr::{NonNull, addr_of},
+    ptr::{addr_of, NonNull},
 };
 
 use alloc::boxed::Box;
@@ -222,7 +222,7 @@ impl<T> Drop for SharedTrc<T> {
         let prev_weak = sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 0);
 
         if prev == 1 && prev_weak == 1 {
-            unsafe { core::ptr::read(addr_of!((*self.data.as_ptr()).data)) };
+            unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.data.as_ptr()).data)) };
             Weak { data: self.data };
         }
     }
@@ -233,6 +233,8 @@ impl<T> Drop for SharedTrc<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     fn drop(&mut self) {
+        use core::ptr::addr_of_mut;
+
         if unsafe { &(*self.data.as_ptr()).atomicref }
             .fetch_sub(1, core::sync::atomic::Ordering::Release)
             != 1
@@ -244,7 +246,7 @@ impl<T> Drop for SharedTrc<T> {
             unsafe { &(*self.data.as_ptr()).weakcount }.load(core::sync::atomic::Ordering::Acquire);
         if weak == 1 {
             core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
-            unsafe { core::ptr::read(addr_of!((*self.data.as_ptr()).data)) };
+            unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.data.as_ptr()).data)) };
             Weak { data: self.data };
         }
     }
@@ -699,7 +701,7 @@ impl<T> Drop for Trc<T> {
             let prev = sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1);
 
             if prev == 1 {
-                unsafe { core::ptr::read(addr_of!((*self.shared.as_ptr()).data)) };
+                unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
                 Weak { data: self.shared };
             }
             drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
@@ -712,6 +714,8 @@ impl<T> Drop for Trc<T> {
         all(target_has_atomic = "ptr", feature = "force_atomic")
     ))]
     fn drop(&mut self) {
+        use core::ptr::addr_of_mut;
+
         *unsafe { self.threadref.as_mut() } -= 1;
         if *unsafe { self.threadref.as_ref() } == 0 {
             drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
@@ -724,7 +728,7 @@ impl<T> Drop for Trc<T> {
             }
 
             core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
-            unsafe { core::ptr::read(addr_of!((*self.shared.as_ptr()).data)) };
+            unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
             Weak { data: self.shared };
         }
     }
@@ -786,7 +790,7 @@ impl<T: Debug> Debug for Trc<T> {
 
 impl<T> Pointer for Trc<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Pointer::fmt(&addr_of!(unsafe{self.shared.as_ref()}.data), f)
+        core::fmt::Pointer::fmt(&addr_of!(unsafe { self.shared.as_ref() }.data), f)
     }
 }
 
@@ -1027,10 +1031,10 @@ impl<T> Drop for Weak<T> {
         {
             return;
         }
-        
+
         core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
-        
-        let layout = Layout::for_value(unsafe{&*self.data.as_ptr()});
+
+        let layout = Layout::for_value(unsafe { &*self.data.as_ptr() });
         unsafe { alloc::alloc::dealloc(self.data.as_ptr().cast(), layout) };
     }
 }
