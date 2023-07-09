@@ -27,12 +27,12 @@ pub struct SharedTrcInternal<T: ?Sized> {
     pub data: T,
 }
 
-/// `Trc` is a performant heap-allocated smart pointer for Rust that implements a version of biased reference counting.
+/// `Trc` is a performant heap-allocated smart pointer for Rust that implements thread reference counting.
 /// `Trc` stands for: Thread Reference Counted.
 /// `Trc` provides shared ownership of the data similar to `Arc<T>` and `Rc<T>`.
-/// It implements biased reference counting, which is based on the observation that most objects are only used by one thread.
+/// It implements thread reference counting, which is based on the observation that most objects are only used by one thread.
 /// This means that two reference counts can be created: one for local thread use, and one atomic one for sharing between threads.
-/// This implementation of biased reference counting sets the atomic reference count to the number of threads using the data.
+/// Thread reference counting sets the atomic reference count to the number of threads using the data.
 ///
 /// ## Breaking reference cycles with `Weak<T>`
 /// A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
@@ -979,6 +979,10 @@ impl<T: Clone> From<&[T]> for Trc<[T]> {
         <Self as TrcFromSlice<T>>::from_slice(value)
     }
 }
+
+//TODO: Integration with standard library for both, or use lib & conditional for just CoerceUnsized
+//impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Trc<U>> for Trc<T> {}
+//impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::DispatchFromDyn<Trc<U>> for Trc<T> {}
 
 
 /// `Weak<T>` is a non-owning reference to `Trc<T>`'s data. It is used to prevent cyclic references which cause memory to never be freed.

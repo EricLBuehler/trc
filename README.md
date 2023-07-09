@@ -5,12 +5,12 @@
 ![Docs status](https://github.com/EricLBuehler/trc/actions/workflows/docs.yml/badge.svg)
 ![Tests status](https://github.com/EricLBuehler/trc/actions/workflows/tests.yml/badge.svg)
 
-`Trc` is a performant heap-allocated smart pointer for Rust that implements a version of biased reference counting.
+`Trc` is a performant heap-allocated smart pointer for Rust that implements thread reference counting.
 `Trc` stands for: Thread Reference Counted.
 `Trc` provides a shared ownership of the data similar to `Arc<T>` and `Rc<T>`.
-It implements a custom version of biased reference counting, which is based on the observation that most objects are only used by one thread.
+It implements thread reference counting, which is based on the observation that most objects are only used by one thread.
 This means that two reference counts can be created: one for thread-local use, and one atomic one for sharing between threads.
-This implementation of biased reference counting sets the atomic reference count to the number of threads using the data.
+Thread reference counting sets the atomic reference count to the number of threads using the data.
 
 A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
 A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.
