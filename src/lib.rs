@@ -15,8 +15,6 @@
 //#![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
-#[cfg(feature = "force_lock")]
-extern crate std;
 
 pub mod trc;
 pub use crate::trc::SharedTrc;

@@ -13,8 +13,8 @@ use std::{os::fd::{AsFd, AsRawFd}, error::Error, panic::UnwindSafe};
 
 use alloc::boxed::Box;
 
-#[cfg(all(not(target_has_atomic = "ptr"), feature = "force_atomic"))]
-compile_error!("Cannot use feature \"force_atomic\" on a system without atomics.");
+#[cfg(not(target_has_atomic = "ptr"))]
+compile_error!("Cannot use `Trc` on a system without atomics.");
 
 use core::sync::atomic::AtomicUsize;
 
