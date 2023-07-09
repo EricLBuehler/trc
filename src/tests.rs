@@ -143,3 +143,11 @@ fn test_weak_drop() {
     println!("DROPPED");
     assert!(Weak::upgrade(&weak).is_none())
 }
+
+#[test]
+fn test_from_slice() {
+    let vec = (1..100).collect::<Vec<i32>>();
+    let slice = &vec[20..50];
+    let trc = Trc::<[i32]>::from(slice);
+    assert_eq!(&*trc, slice);
+}
