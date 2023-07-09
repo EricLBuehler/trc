@@ -27,9 +27,9 @@ pub struct SharedTrcInternal<T: ?Sized> {
     pub data: T,
 }
 
-/// `Trc<T>` is a performant heap-allocated smart pointer for Rust that implements a version of biased reference counting.
-/// `Trc<T>` stands for: Thread Reference Counted.
-/// `Trc<T>` provides shared ownership of the data similar to `Arc<T>` and `Rc<T>`. In addition, it also provides interior mutability.
+/// `Trc` is a performant heap-allocated smart pointer for Rust that implements a version of biased reference counting.
+/// `Trc` stands for: Thread Reference Counted.
+/// `Trc` provides shared ownership of the data similar to `Arc<T>` and `Rc<T>`.
 /// It implements biased reference counting, which is based on the observation that most objects are only used by one thread.
 /// This means that two reference counts can be created: one for local thread use, and one atomic one for sharing between threads.
 /// This implementation of biased reference counting sets the atomic reference count to the number of threads using the data.
