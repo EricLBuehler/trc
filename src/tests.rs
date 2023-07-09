@@ -151,3 +151,49 @@ fn test_from_slice() {
     let trc = Trc::<[i32]>::from(slice);
     assert_eq!(&*trc, slice);
 }
+
+#[test]
+fn readme_single_trc() {
+    let mut trc = Trc::new(100);
+    assert_eq!(*trc, 100);
+    *unsafe { Trc::get_mut(&mut trc) }.unwrap() = 200;
+    assert_eq!(*trc, 200);
+}
+
+#[test]
+fn readme_multi_trc() {
+    let trc = Trc::new(100);
+    let shared = SharedTrc::from_trc(&trc);
+    let handle = thread::spawn(move || {
+        let trc = SharedTrc::to_trc(shared);
+        assert_eq!(*trc, 100);
+    });
+
+    handle.join().unwrap();
+    assert_eq!(*trc, 100);
+}
+
+#[test]
+fn readme_single_weak() {
+    let trc = Trc::new(100);
+    let weak = Trc::downgrade(&trc);
+    let mut new_trc = Weak::upgrade(&weak).unwrap();
+    assert_eq!(*new_trc, 100);
+    drop(trc);
+    drop(weak);
+    *unsafe { Trc::get_mut(&mut new_trc) }.unwrap() = 200;
+    assert_eq!(*new_trc, 200);
+}
+
+#[test]
+fn readme_multi_weak() {
+    let trc = Trc::new(100);
+    let weak = Trc::downgrade(&trc);
+
+    let handle = thread::spawn(move || {
+        let trc = Weak::upgrade(&weak).unwrap();
+        assert_eq!(*trc, 100);
+    });
+    handle.join().unwrap();
+    assert_eq!(*trc, 100);
+}

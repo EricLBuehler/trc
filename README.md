@@ -28,7 +28,7 @@ use trc::Trc;
 
 let mut trc = Trc::new(100);
 assert_eq!(*trc, 100);
-*trc = 200;
+*unsafe { Trc::get_mut(&mut trc) }.unwrap() = 200;
 assert_eq!(*trc, 200);
 ```
 
@@ -39,14 +39,14 @@ use trc::Trc;
 use trc::SharedTrc;
 
 let trc = Trc::new(100);
-let shared = SharedTrc::from_trc(&thread_trc_main);
+let shared = SharedTrc::from_trc(&trc);
 let handle = thread::spawn(move || {
-    let mut trc = SharedTrc::to_trc(shared);
-    *trc2 = 200;
+    let trc = SharedTrc::to_trc(shared);
+    assert_eq!(*trc, 100);
 });
 
 handle.join().unwrap();
-assert_eq!(*trc, 200);
+assert_eq!(*trc, 100);
 ```
 
 Example of `Weak<T>` in a single thread:
@@ -55,12 +55,13 @@ use trc::Trc;
 use trc::Weak;
 
 let trc = Trc::new(100);
-let weak = Weak::from_trc(&trc);
-let mut new_trc = Weak::to_trc(&weak).unwrap();
-println!("Deref test! {}", *new_trc);
-println!("DerefMut test");
-*new_trc = 200;
-println!("Deref test! {}", *new_trc);
+let weak = Trc::downgrade(&trc);
+let mut new_trc = Weak::upgrade(&weak).unwrap();
+assert_eq!(*new_trc, 100);
+drop(trc);
+drop(weak);
+*unsafe { Trc::get_mut(&mut new_trc) }.unwrap() = 200;
+assert_eq!(*new_trc, 200);
 ```
 
 Example of `Weak<T>` with multiple threads:
@@ -70,16 +71,14 @@ use trc::Trc;
 use trc::Weak;
 
 let trc = Trc::new(100);
-let weak = Weak::from_trc(&trc);
+let weak = Trc::downgrade(&trc);
 
 let handle = thread::spawn(move || {
-    let mut trc = Weak::to_trc(&weak).unwrap();
-    println!("{:?}", *trc);
-    *trc = 200;
+    let trc = Weak::upgrade(&weak).unwrap();
+    assert_eq!(*trc, 100);
 });
 handle.join().unwrap();
-println!("{}", *trc);
-assert_eq!(*trc, 200);
+assert_eq!(*trc, 100);
 ```
 
 ## Benchmarks
