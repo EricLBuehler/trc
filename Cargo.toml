@@ -1,6 +1,6 @@
 [package]
 name = "trc"
-version = "1.1.18"
+version = "1.1.19"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
@@ -11,17 +11,9 @@ repository = "https://github.com/EricLBuehler/trc"
 keywords = ["reference-counted", "thread-safe", "smart-pointer", "memory"]
 categories = ["memory-management", "data-structures", "concurrency"]
 
-[features]
-default = []
-force_atomic = []
-force_lock = ["async-std"]
-
 [dev-dependencies]
 criterion = "0.5.1"
 
 [[bench]]
 name = "benchmark"
 harness = false
-
-[dependencies]
-async-std = {version = "1.12.0", optional = true}

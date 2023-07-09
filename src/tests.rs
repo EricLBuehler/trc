@@ -20,7 +20,7 @@ fn test_singlethreaded() {
     let mut trc = Trc::new(data);
     println!("Deref test! {}", trc.int);
     println!("DerefMut test");
-    unsafe { Trc::deref_mut(&mut trc) }.string = String::from("This is also data");
+    unsafe { Trc::get_mut(&mut trc).unwrap() }.string = String::from("This is also data");
     println!("Deref test! {}", trc.string);
 }
 
@@ -28,7 +28,7 @@ fn test_singlethreaded() {
 fn test_singlethreaded2() {
     let mut trc = Trc::new(100);
     assert_eq!(*trc, 100);
-    *unsafe { Trc::deref_mut(&mut trc) } = 200;
+    *unsafe { Trc::get_mut(&mut trc).unwrap() } = 200;
     assert_eq!(*trc, 200);
 }
 
@@ -37,13 +37,13 @@ fn test_refcount() {
     let trc = Trc::new(100);
     let alt = trc.clone();
     println!();
-    println!("localref {}", Trc::local_refcount(&trc));
+    println!("localref {}", Trc::local_count(&trc));
     println!("atomicref {}", Trc::atomic_count(&trc));
     let _shared = SharedTrc::from_trc(&trc);
-    println!("localref {}", Trc::local_refcount(&trc));
+    println!("localref {}", Trc::local_count(&trc));
     println!("atomicref {}", Trc::atomic_count(&trc));
     drop(trc);
-    println!("localref {}", Trc::local_refcount(&alt));
+    println!("localref {}", Trc::local_count(&alt));
     println!("atomicref {}", Trc::atomic_count(&alt));
     println!();
 }
@@ -58,14 +58,13 @@ fn test_multithread1() {
     let thread_trc_main = Trc::new(data);
     println!(
         "Local reference count in thread0: {}",
-        Trc::local_refcount(&thread_trc_main)
+        Trc::local_count(&thread_trc_main)
     );
     let shared = SharedTrc::from_trc(&thread_trc_main);
     let handle = thread::spawn(move || {
-        let mut trc = SharedTrc::to_trc(shared);
+        let trc = SharedTrc::to_trc(shared);
         println!("Thread1 Deref test! {}", trc.int);
         println!("DerefMut test");
-        unsafe { Trc::deref_mut(&mut trc) }.string = String::from("This is the new data");
     });
     handle.join().unwrap();
     println!(
@@ -80,39 +79,39 @@ fn test_multithread2() {
     let trc = Trc::new(100);
     let shared = SharedTrc::from_trc(&trc);
     let handle = thread::spawn(move || {
-        let mut trc = SharedTrc::to_trc(shared);
+        let trc = SharedTrc::to_trc(shared);
         println!("{:?}", *trc);
-        *unsafe { Trc::deref_mut(&mut trc) } = 200;
     });
     handle.join().unwrap();
     println!("{}", *trc);
-    assert_eq!(*trc, 200);
+    assert_eq!(*trc, 100);
 }
 
 #[test]
 fn test_weak() {
     let trc = Trc::new(100);
-    let weak = Weak::from_trc(&trc);
-    let mut new_trc = Weak::to_trc(&weak).unwrap();
+    let weak = Trc::downgrade(&trc);
+    let mut new_trc = Weak::upgrade(&weak).unwrap();
     println!("Deref test! {}", *new_trc);
     println!("DerefMut test");
-    *unsafe { Trc::deref_mut(&mut new_trc) } = 200;
+    drop(weak);
+    drop(trc);
+    *unsafe { Trc::get_mut(&mut new_trc).unwrap() } = 200;
     println!("Deref test! {}", *new_trc);
 }
 
 #[test]
 fn test_multithread_weak() {
     let trc = Trc::new(100);
-    let weak = Weak::from_trc(&trc);
+    let weak = Trc::downgrade(&trc);
     let handle = thread::spawn(move || {
-        let mut trc = Weak::to_trc(&weak).unwrap();
+        let trc = Weak::upgrade(&weak).unwrap();
         println!("{:?}", *trc);
-        *unsafe { Trc::deref_mut(&mut trc) } = 200;
         println!("Atomic: {}", Trc::atomic_count(&trc));
     });
     handle.join().unwrap();
     println!("{}", *trc);
-    assert_eq!(*trc, 200);
+    assert_eq!(*trc, 100);
     println!("Atomic: {}", Trc::atomic_count(&trc));
 }
 
@@ -137,10 +136,10 @@ fn test_dyn() {
 #[test]
 fn test_weak_drop() {
     let trc = Trc::new(100);
-    let weak = Weak::from_trc(&trc);
+    let weak = Trc::downgrade(&trc);
     println!("atomic {}", Trc::atomic_count(&trc));
     println!("weak {}", Trc::weak_count(&trc));
     drop(trc);
     println!("DROPPED");
-    assert!(Weak::to_trc(&weak).is_none())
+    assert!(Weak::upgrade(&weak).is_none())
 }
