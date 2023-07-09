@@ -27,3 +27,9 @@ jobs:
       run:  rustup +nightly component add miri
     - name: Test with Miri
       run: cargo +nightly miri test
+    - name: Miri with strict provenance
+      run: MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test
+    - name: Miri with symbolic alignment check
+      run: MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test
+    - name: Miri with tree borrows
+      run: MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
