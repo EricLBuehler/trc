@@ -12,8 +12,6 @@
 //! They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
 //! must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
 
-//#![cfg_attr(not(test), no_std)]
-
 extern crate alloc;
 
 pub mod trc;
