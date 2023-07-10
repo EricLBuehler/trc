@@ -71,6 +71,14 @@ MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 | Trc | 30.666ms |
 | Arc | 126.330ms |
 
+### Multiple Threads Drop and Clone (500000 times)
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 88.387ms |
+| Arc | 534.67ms |
+
+![Trc vs Arc performance (WSL2 x86_64)](./figures/wsl2_x86_64.png)
+
 
 ## Ubuntu 20.04 + Intel Xeon Platinum 8358 (x86_64)
 
@@ -144,6 +152,8 @@ MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 | --- | ----------- |
 | Trc | 71.490ms |
 | Arc | 638.180ms |
+
+![Trc vs Arc performance (Ubuntu x86_64)](./figures/ubuntu_x86_64.png)
 
 
 ## Debian 6.1.20 + ARM Neoverse-N1 (aarch64)
@@ -220,3 +230,5 @@ MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 | --- | ----------- |
 | Trc | 71.543ms |
 | Arc | 590.530ms |
+
+![Trc vs Arc performance (Debian aarch64)](./figures/debian_aarch64.png)
