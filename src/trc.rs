@@ -41,8 +41,10 @@ pub struct SharedTrcInternal<T: ?Sized> {
 /// must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (whcih can be dropped), and only keeps the backing allocation alive.
 /// See [`Weak`] for more information.
 ///
-/// This is relatively expensive; it allocates memory on the heap. However, calling the method
-/// is most likely something that will not be done in loop.
+/// ## Sending data accross threads with `SharedTrc<T>`
+/// To soundly implement thread safety `Trc<T>` does not implement [`Send`] or [`Sync`].
+/// However, [`SharedTrc`] does, and it is the only way to safely send a `Trc<T>` across threads.
+/// See [`SharedTrc`] for it's API, which is similar to that of [`Weak`].
 ///
 /// ## Clone behavior
 /// When a `Trc<T>` is cloned, it's internal (wrapped) data stays at the same memory location, but a new `Trc<T>` is constructed and returned.
@@ -59,10 +61,11 @@ pub struct SharedTrcInternal<T: ?Sized> {
 /// If the atomic reference count is zero, then the internal data is dropped. Regardless of wherether the atomic refernce count is zero, the
 /// local `Trc<T>` is dropped.
 ///
-/// ## [`Deref`] and [`DerefMut`] behavior
+/// ## [`Deref`] and `DerefMut` behavior
 /// For ease of developer use, `Trc<T>` comes with [`Deref`] implemented.
 /// `Trc<T>` automatically dereferences to `&T`. This allows method calls and member acess of `T`.
-/// [`DerefMut`] is not implemented as it is unsafe. However, `Trc<T>` does provide an unsafe `.deref_mut()` method to get a `&mut T`.
+/// `DerefMut` is not directly implemented as that could cause UB due to the possibility of multiple `&mut` references to the `Trc`.
+/// However, `Trc<T>` does provide an unsafe `.deref_mut()` method to get a `&mut T`.
 /// To prevent name clashes, `Trc<T>`'s functions are associated.
 ///
 /// ## Footnote on `dyn` wrapping
@@ -70,7 +73,7 @@ pub struct SharedTrcInternal<T: ?Sized> {
 /// CoerceUnsized, DispatchFromDyn, and Reciever (with arbitrary_self_types) are stablized.
 /// In addition, the internal structure of `Trc<T>` means that [`NonNull`] cannot be used as an indirection for CoerceUnsized due to it's
 /// internals (`*const T`), and so wrapping `dyn` types cannot be implemented. Howeover, one can use a [`Box`] as a wrapper and then wrap with `Trc<T>`.
-///
+/// 
 /// ## Examples
 ///
 /// Example in a single thread:
@@ -478,7 +481,7 @@ impl<T> Trc<T> {
     ///     (None, Some(3)) | (Some(3), None)
     /// ));
     /// ```
-    /// ```
+    /// 
     #[inline]
     pub fn into_inner(this: Self) -> Option<T> {
         let this = core::mem::ManuallyDrop::new(this);
@@ -635,7 +638,7 @@ impl<T: ?Sized> Trc<T> {
     }
 
     /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of `Trc<T>`.
-    /// It includes the implicit weak reference held by all Trc<T> to themselves.
+    /// It includes the implicit weak reference held by all `Trc<T>` to themselves.
     /// ```
     /// use trc::Trc;
     /// use trc::Weak;
@@ -1085,7 +1088,7 @@ impl<T: Clone> TrcFromSlice<T> for Trc<[T]> {
 }
 
 impl<T: Clone> From<&[T]> for Trc<[T]> {
-    /// From conversion from a  reference to a slice of type `T` (&[T]) to a `Trc<[T]>`.
+    /// From conversion from a  reference to a slice of type `T` (`&[T]`) to a `Trc<[T]>`.
     /// 
     /// ```
     /// use trc::Trc;
