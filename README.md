@@ -86,65 +86,67 @@ Benchmarks via Criterion. As can be seen, `Trc`'s performance realy shines when 
 The reason `Trc` does not do as well for fewer operations is because it needs to allocate `n+1` blocks of memory for `n` threads, and
 so for 1 thread, there are 2 allocations. However, after the initial allocations, `Trc` performs very well - 3.81x `Arc`'s time for Clones. 
 
-### Clone
+Click [here](BENCHMARKS.md) for more benchmarks. Multiple different operating systems, CPUs, and architectures are tested. 
+
+### Clone   
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 36.201ms |
-| Arc | 43.793ns |
-| Rc | 14.112ns |
+| Trc | 26.913ns |
+| Arc | 33.803ns |
+| Rc | 11.228ns |
 
 ### Multiple Clone (100 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 350.000ns |
-| Arc | 1331.900ns |
-| Rc | 303.73ns |
+| Trc | 423.020ns |
+| Arc | 1273.200ns |
+| Rc | 352.920ns |
 
 ### Deref
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 26.978ns |
-| Arc | 24.745ns |
-| Rc | 12.249ns |
+| Trc | 20.802ns |
+| Arc | 20.802ns |
+| Rc | 9.264ns |
 
 ### Multiple Deref (100 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 55.148ns |
-| Arc | 54.261ns |
-| Rc | 44.764ns |
+| Trc | 35.577ns |
+| Arc | 35.853ns |
+| Rc | 29.454ns |
 
 ### Multiple Threads Drop and Clone (1000 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 10.945ms |
-| Arc | 13.754ms |
+| Trc | 2.80ms |
+| Arc | 4.02ms |
 
-1.26x faster - because of the allocation cost of `SharedTrc`.
+1.44x faster - because of the allocation cost of `SharedTrc`.
 
 ### Multiple Threads Drop and Clone (5000 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 12.300ms |
-| Arc | 18.104ms |
+| Trc | 3.480ms |
+| Arc | 9.415ms |
 
-1.47x faster - the allocation cost of `SharedTrc` begins to become replaced by the `Clone` effiency.
+2.71x faster - the allocation cost of `SharedTrc` begins to become replaced by the `Clone` effiency.
 
 ### Multiple Threads Drop and Clone (100000 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 30.666ms |
-| Arc | 126.330ms |
+| Trc | 18.451ms |
+| Arc | 137.980ms |
 
-4.12x faster - the allocation cost of `SharedTrc` is now negligible and the `Clone` advantage is beginning to be demonstrated.
+7.44x faster - the allocation cost of `SharedTrc` is now negligible and the `Clone` advantage is beginning to be demonstrated.
 
 ### Multiple Threads Drop and Clone (500000 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 88.387ms |
-| Arc | 534.670ms |
+| Trc | 71.490ms |
+| Arc | 638.180ms |
 
-6.05x faster - the allocation cost of `SharedTrc` is now negligible and the `Clone` advantage is demonstrated.
+8.92x faster - the allocation cost of `SharedTrc` is now negligible and the `Clone` advantage is demonstrated.
 
 ![Trc vs Arc performance](./figures/performance.png)
 

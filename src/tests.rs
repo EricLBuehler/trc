@@ -197,3 +197,11 @@ fn readme_multi_weak() {
     handle.join().unwrap();
     assert_eq!(*trc, 100);
 }
+
+#[test]
+fn test_rc_issue_uninit() {
+    //https://github.com/rust-lang/rust/issues/95334
+    //Cannot use isize::MAX on my 64-bit system
+    let p = Trc::<[u8]>::new_uninit_slice(2_usize.pow(16));
+    let _ = p.last();
+}
