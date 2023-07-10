@@ -7,7 +7,7 @@ use std::{
     hash::{Hash, Hasher},
     ops::Deref,
     pin::Pin,
-    ptr::{self, addr_of, addr_of_mut, NonNull, slice_from_raw_parts_mut, write}, alloc::{Layout, alloc},
+    ptr::{self, addr_of, addr_of_mut, NonNull, slice_from_raw_parts_mut, write}, alloc::{Layout, alloc}, mem::{MaybeUninit, ManuallyDrop},
 };
 use std::{os::fd::{AsFd, AsRawFd}, error::Error, panic::UnwindSafe};
 
@@ -130,7 +130,7 @@ impl<T: ?Sized> SharedTrc<T> {
         let prev = sum_value(
             &unsafe { trc.shared.as_ref() }.atomicref,
             1,
-            core::sync::atomic::Ordering::AcqRel,
+            core::sync::atomic::Ordering::Acquire,
         );
         if prev > MAX_REFCOUNT {
             panic!("Overflow of maximum strong reference count.");
@@ -317,6 +317,36 @@ impl<T> Trc<T> {
         }
     }
 
+    /// Creates a new uninitialized `Trc<T>`.
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let mut trc = Trc::new_uninit();
+    /// 
+    /// Trc::get_mut(&mut trc).unwrap().write(5);
+    /// 
+    /// let five = unsafe { trc.assume_init() };
+    /// 
+    /// assert_eq!(*five, 5);
+    /// ```
+    #[inline]
+    pub fn new_uninit() -> Trc<MaybeUninit<T>> {
+        let shareddata = SharedTrcInternal {
+            atomicref: AtomicUsize::new(1),
+            weakcount: AtomicUsize::new(1),
+            data: MaybeUninit::<T>::uninit(),
+        };
+
+        let sbx = Box::new(shareddata);
+
+        let tbx = Box::new(1);
+
+        Trc {
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: NonNull::from(Box::leak(sbx)),
+        }
+    }
+
     /// Creates a new cyclic `Trc<T>` from the provided data. It allows the storage of `Weak<T>` which points the the allocation
     /// of `Trc<T>`inside of `T`. Holding a `Trc<T>` inside of `T` would cause a memory leak. This method works around this by
     /// providing a `Weak<T>` during the consturction of the `Trc<T>`, so that the `T` can store the `Weak<T>` internally.
@@ -475,6 +505,97 @@ impl<T> Trc<T> {
     }
 }
 
+impl<T> Trc<[T]> {
+    /// Constructs a new Trc slice with uninitialized contents.
+    ///
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let mut trc = Trc::new_uninit();
+    /// 
+    /// Trc::get_mut(&mut trc).unwrap().write(5);
+    /// 
+    /// let five = unsafe { trc.assume_init() };
+    /// 
+    /// assert_eq!(*five, 5);
+    /// ```
+    pub fn new_uninit_slice(len: usize) -> Trc<[MaybeUninit<T>]> {
+        let value_layout = Layout::array::<T>(len).unwrap();
+        let layout = Layout::new::<SharedTrcInternal<()>>().extend(value_layout).unwrap().0.pad_to_align();
+
+        let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, len) as *mut SharedTrcInternal<[MaybeUninit<T>]>;
+        unsafe { write(&mut (*res).atomicref, AtomicUsize::new(1)) };
+        unsafe { write(&mut (*res).weakcount, AtomicUsize::new(1)) };
+        
+        let elems = unsafe { addr_of_mut!((*res).data) } as *mut MaybeUninit<T>;
+        for i in 0..len {
+            unsafe { write(elems.add(i), MaybeUninit::<T>::uninit()) };
+        }
+        let tbx = Box::new(1);
+
+        Trc {
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: unsafe { NonNull::new_unchecked(res) },
+        }   
+    }
+}
+
+impl<T> Trc<MaybeUninit<T>> {
+    /// Converts to `Trc<T>`.
+    /// 
+    /// # Safety
+    /// As with `MaybeUninit::assume_init`, it is up to the caller to guarantee that the inner value really is in an initialized state.
+    /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
+    /// 
+    /// ```rust
+    /// use trc::Trc;
+    ///
+    /// let mut values = Trc::<[u32]>::new_uninit_slice(3);
+    ///
+    /// // Deferred initialization:
+    /// let data = Trc::get_mut(&mut values).unwrap();
+    /// data[0].write(1);
+    /// data[1].write(2);
+    /// data[2].write(3);
+    ///
+    /// let values = unsafe { values.assume_init() };
+    ///
+    /// assert_eq!(*values, [1, 2, 3])
+    /// ```
+    pub unsafe fn assume_init(self) -> Trc<T> {
+        let threadref = self.threadref;
+        Trc { shared: NonNull::new_unchecked(ManuallyDrop::new(self).shared.as_ptr().cast()), threadref }
+    }
+}
+
+impl<T> Trc<[MaybeUninit<T>]> {
+    /// Converts to `Trc<[T]>`.
+    /// 
+    /// # Safety
+    /// As with `MaybeUninit::assume_init`, it is up to the caller to guarantee that the inner value really is in an initialized state.
+    /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
+    /// 
+    /// ```rust
+    /// use trc::Trc;
+    ///
+    /// let mut values = Trc::<[u32]>::new_uninit_slice(3);
+    ///
+    /// // Deferred initialization:
+    /// let data = Trc::get_mut(&mut values).unwrap();
+    /// data[0].write(1);
+    /// data[1].write(2);
+    /// data[2].write(3);
+    ///
+    /// let values = unsafe { values.assume_init() };
+    ///
+    /// assert_eq!(*values, [1, 2, 3])
+    /// ```
+    pub unsafe fn assume_init(self) -> Trc<[T]> {
+        let threadref = self.threadref;
+        Trc { shared: NonNull::new_unchecked(ManuallyDrop::new(self).shared.as_ptr() as _), threadref }
+    }
+}
+
 impl<T: ?Sized> Trc<T> {
     /// Return the local thread reference count of the object, which is how many `Trc<T>`s in this thread point to the data referenced by this `Trc<T>`.
     /// ```
@@ -566,12 +687,12 @@ impl<T: ?Sized> Trc<T> {
     /// use std::ops::DerefMut;
     ///
     /// let mut trc = Trc::new(100);
-    /// let mutref = unsafe { Trc::get_mut(&mut trc) }.unwrap();
+    /// let mutref = Trc::get_mut(&mut trc).unwrap();
     /// *mutref = 300;
     /// assert_eq!(*trc, 300);
     /// ```
     #[inline]
-    pub unsafe fn get_mut(this: &mut Self) -> Option<&mut T> {
+    pub fn get_mut(this: &mut Self) -> Option<&mut T> {
         //Acquire the weakcount if it is == 1
         if unsafe { this.shared.as_ref() }
             .weakcount
@@ -595,7 +716,7 @@ impl<T: ?Sized> Trc<T> {
                 .store(1, core::sync::atomic::Ordering::Release);
 
             if unique && *unsafe { this.threadref.as_ref() } == 1 {
-                Some(&mut (*this.shared.as_ptr()).data)
+                Some(unsafe {&mut (*this.shared.as_ptr()).data })
             } else {
                 None
             }
@@ -603,7 +724,6 @@ impl<T: ?Sized> Trc<T> {
             None
         }
     }
-
 }
 
 impl<T: Clone> Trc<T> {
@@ -646,7 +766,7 @@ impl<T: ?Sized> Trc<T> {
         let prev = sum_value(
             &unsafe { trc.shared.as_ref() }.weakcount,
             1,
-            core::sync::atomic::Ordering::AcqRel,
+            core::sync::atomic::Ordering::Acquire,
         );
         if prev > MAX_REFCOUNT {
             panic!("Overflow of maximum weak reference count.");

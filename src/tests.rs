@@ -20,7 +20,7 @@ fn test_singlethreaded() {
     let mut trc = Trc::new(data);
     println!("Deref test! {}", trc.int);
     println!("DerefMut test");
-    unsafe { Trc::get_mut(&mut trc).unwrap() }.string = String::from("This is also data");
+    Trc::get_mut(&mut trc).unwrap().string = String::from("This is also data");
     println!("Deref test! {}", trc.string);
 }
 
@@ -28,7 +28,7 @@ fn test_singlethreaded() {
 fn test_singlethreaded2() {
     let mut trc = Trc::new(100);
     assert_eq!(*trc, 100);
-    *unsafe { Trc::get_mut(&mut trc).unwrap() } = 200;
+    *Trc::get_mut(&mut trc).unwrap() = 200;
     assert_eq!(*trc, 200);
 }
 
@@ -96,7 +96,7 @@ fn test_weak() {
     println!("DerefMut test");
     drop(weak);
     drop(trc);
-    *unsafe { Trc::get_mut(&mut new_trc).unwrap() } = 200;
+    *Trc::get_mut(&mut new_trc).unwrap() = 200;
     println!("Deref test! {}", *new_trc);
 }
 
@@ -156,7 +156,7 @@ fn test_from_slice() {
 fn readme_single_trc() {
     let mut trc = Trc::new(100);
     assert_eq!(*trc, 100);
-    *unsafe { Trc::get_mut(&mut trc) }.unwrap() = 200;
+    *Trc::get_mut(&mut trc).unwrap() = 200;
     assert_eq!(*trc, 200);
 }
 
@@ -181,7 +181,7 @@ fn readme_single_weak() {
     assert_eq!(*new_trc, 100);
     drop(trc);
     drop(weak);
-    *unsafe { Trc::get_mut(&mut new_trc) }.unwrap() = 200;
+    *Trc::get_mut(&mut new_trc).unwrap() = 200;
     assert_eq!(*new_trc, 200);
 }
 
