@@ -77,7 +77,7 @@ MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 | Trc | 88.387ms |
 | Arc | 534.67ms |
 
-![Trc vs Arc performance (WSL2 x86_64)](./figures/wsl2_x86_64.png)
+![Trc vs Arc performance (WSL2 x86_64)](./figures/wsl2_x84_64.png)
 
 
 ## Ubuntu 20.04 + Intel Xeon Platinum 8358 (x86_64)
