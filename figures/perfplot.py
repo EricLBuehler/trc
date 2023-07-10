@@ -29,9 +29,6 @@ plt.clf()
 
 
 
-
-
-
 plt.plot([1000, 5000, 100000, 500000], [2.8, 3.48, 18.451, 71.49], color = "orange")
 plt.plot([1000, 5000, 100000, 500000], [4.02, 9.415, 137.980, 680.18], color = "r")
 plt.plot([1000, 5000, 100000, 500000], [1.883, 2.424, 16.585, 71.543], color = "brown")
@@ -41,7 +38,7 @@ plt.plot([1000, 5000, 100000, 500000], [13.854, 18.104, 126.330, 534.67], color 
 
 plt.ylabel("Benchmarked time (ms)")
 plt.xlabel("Number of iterations")
-plt.title("Arc vs Trc performance (Debian + aarch64)")
+plt.title("Arc vs Trc performance")
 plt.legend(("Trc (Ubuntu + x86_64)","Arc (Ubuntu + x86_64)",
             "Trc (WSL2 + x86_64)","Arc (WSL2 + x86_64)",
             "Trc (Debian + aarch64)","Arc (Debian + aarch64)"), shadow=True, fancybox=True)
