@@ -84,7 +84,7 @@ assert_eq!(*trc, 100);
 ## Benchmarks
 Benchmarks via Criterion. As can be seen, `Trc`'s performance realy shines when there are many Clones.
 The reason `Trc` does not do as well for fewer operations is because it needs to allocate `n+1` blocks of memory for `n` threads, and
-so for 1 thread, there are 2 allocations. However, after the initial allocations, `Trc` performs very well - 3.94x `Arc`'s time for Clones. 
+so for 1 thread, there are 2 allocations. However, after the initial allocations, `Trc` performs very well - 3.81x `Arc`'s time for Clones. 
 
 ### Clone
 | Type | Mean time |
