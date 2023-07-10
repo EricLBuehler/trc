@@ -13,10 +13,10 @@
 //! They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
 //! must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (whcih can be dropped), and only keeps the backing allocation alive.
 //! See [`Weak`] for more information.
-//! 
+//!
 //! ## Sending data accross threads with `SharedTrc<T>`
-//! To soundly implement thread safety `Trc<T>` does not implement `Send` or `Sync`. 
-//! However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across threads. 
+//! To soundly implement thread safety `Trc<T>` does not implement `Send` or `Sync`.
+//! However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across threads.
 //! See [`SharedTrc`] for it's API, which is similar to that of `Weak`.
 
 extern crate alloc;

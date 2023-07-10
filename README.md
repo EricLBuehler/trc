@@ -89,30 +89,64 @@ so for 1 thread, there are 2 allocations. However, after the initial allocations
 ### Clone
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 35.926ms |
-| Arc | 37.032ns |
-| Rc | 15.866ns |
+| Trc | 36.201ms |
+| Arc | 43.793ns |
+| Rc | 14.112ns |
 
 ### Multiple Clone (100 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 337.210ns |
-| Arc | 1327.000ns |
-| Rc | 293.71ns |
+| Trc | 350.000ns |
+| Arc | 1331.900ns |
+| Rc | 303.73ns |
 
 ### Deref
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 23.613ns |
-| Arc | 23.735ns |
-| Rc | 12.462ns |
+| Trc | 26.978ns |
+| Arc | 24.745ns |
+| Rc | 12.249ns |
 
 ### Multiple Deref (100 times)
 | Type | Mean time |
 | --- | ----------- |
-| Trc | 51.166ns |
-| Arc | 55.585ns |
-| Rc | 41.808ns |
+| Trc | 55.148ns |
+| Arc | 54.261ns |
+| Rc | 44.764ns |
+
+### Multiple Threads Drop and Clone (1000 times)
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 10.945ms |
+| Arc | 13.754ms |
+
+1.26x faster - because of the allocation cost of `SharedTrc`.
+
+### Multiple Threads Drop and Clone (5000 times)
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 12.300ms |
+| Arc | 18.104ms |
+
+1.47x faster - the allocation cost of `SharedTrc` begins to become replaced by the `Clone` effiency.
+
+### Multiple Threads Drop and Clone (100000 times)
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 30.666ms |
+| Arc | 126.330ms |
+
+4.12x faster - the allocation cost of `SharedTrc` is now negligible and the `Clone` advantage is beginning to be demonstrated.
+
+### Multiple Threads Drop and Clone (500000 times)
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 88.387ms |
+| Arc | 534.670ms |
+
+6.05x faster - the allocation cost of `SharedTrc` is now negligible and the `Clone` advantage is demonstrated.
+
+![Trc vs Arc performance](./figures/performance.png)
 
 ## Use
 To use `Trc`, simply run `cargo add trc`, or add `trc = "1.1.18"`. Optionally, you can always use the latest version by adding `trc = {git = "https://github.com/EricLBuehler/trc.git"}`.
