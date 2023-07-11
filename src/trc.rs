@@ -74,9 +74,10 @@ pub struct SharedTrcInternal<T: ?Sized> {
 /// To prevent name clashes, `Trc<T>`'s functions are associated.
 ///
 /// ## Footnote on `dyn` wrapping
-/// Rust's limitations mean that `Trc` will not be able to be used as a method reciever/trait object wrapper until
-/// CoerceUnsized, DispatchFromDyn, and Reciever (with arbitrary_self_types) are stablized.
-/// Howeover, one can use a [`Box`] as a wrapper and then wrap with `Trc<T>`.
+/// Rust's limitations mean that `Trc` will not be able to be used as a method reciever wrapper until
+/// CoerceUnsized, and Reciever (with arbitrary_self_types) are stablized. However, DispatchFromDyn cannot be implemented due
+/// to the requirements of thread reference counting, and so `Trc` will not be able to be used as a trait object method receiver.
+/// As an alternative, one can use a [`Box`] as a wrapper and then wrap with `Trc<T>`.
 ///
 /// ## Examples
 ///
