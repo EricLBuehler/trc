@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-#![allow(clippy::mut_from_ref)]
 
 use std::{
     alloc::{alloc, Layout},
