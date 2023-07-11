@@ -28,7 +28,7 @@ use trc::Trc;
 
 let mut trc = Trc::new(100);
 assert_eq!(*trc, 100);
-*unsafe { Trc::get_mut(&mut trc) }.unwrap() = 200;
+*Trc::get_mut(&mut trc).unwrap() = 200;
 assert_eq!(*trc, 200);
 ```
 
@@ -60,7 +60,7 @@ let mut new_trc = Weak::upgrade(&weak).unwrap();
 assert_eq!(*new_trc, 100);
 drop(trc);
 drop(weak);
-*unsafe { Trc::get_mut(&mut new_trc) }.unwrap() = 200;
+*Trc::get_mut(&mut new_trc).unwrap() = 200;
 assert_eq!(*new_trc, 200);
 ```
 

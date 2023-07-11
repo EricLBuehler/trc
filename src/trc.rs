@@ -7,7 +7,7 @@ use std::{
     hash::{Hash, Hasher},
     ops::Deref,
     pin::Pin,
-    ptr::{self, addr_of, addr_of_mut, NonNull, slice_from_raw_parts_mut, write}, alloc::{Layout, alloc}, mem::{MaybeUninit, ManuallyDrop},
+    ptr::{self, addr_of, addr_of_mut, NonNull, slice_from_raw_parts_mut, write}, alloc::{Layout, alloc}, mem::{MaybeUninit, ManuallyDrop, forget}
 };
 use std::{os::fd::{AsFd, AsRawFd}, error::Error, panic::UnwindSafe};
 
@@ -82,7 +82,7 @@ pub struct SharedTrcInternal<T: ?Sized> {
 ///
 /// let mut trc = Trc::new(100);
 /// assert_eq!(*trc, 100);
-/// *unsafe { Trc::get_mut(&mut trc) }.unwrap() = 200;
+/// *Trc::get_mut(&mut trc).unwrap() = 200;
 /// assert_eq!(*trc, 200);
 /// ```
 ///
@@ -506,6 +506,37 @@ impl<T> Trc<T> {
         
         Some(elem)
     }
+
+    /// Converts a `*const T` into `Trc<T>`. The caller must uphold the below safety constraints.
+    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
+    /// 
+    /// # Safety
+    /// - The given pointer must be a valid pointer to `T` that came from `into_raw`.
+    /// - After `from_raw`, the pointer must not be accessed.
+    /// 
+    /// ```rust
+    /// use trc::Trc;
+    /// 
+    /// let trc = Trc::new(100);
+    /// let ptr = Trc::into_raw(trc);
+    /// 
+    /// assert_eq!(unsafe { *ptr }, 100);
+    /// 
+    /// unsafe { Trc::from_raw(ptr) };
+    /// ```
+    pub unsafe fn from_raw(ptr: *const T) -> Self {
+        let tbx = Box::new(1);
+
+        let layout = Layout::new::<SharedTrcInternal<()>>();
+        let n = layout.size();
+
+        let data_ptr = (ptr as *const u8).sub(n) as *mut SharedTrcInternal<T>;
+        
+        Trc {
+            threadref: NonNull::from(Box::leak(tbx)),
+            shared: NonNull::new_unchecked(data_ptr),
+        }
+    }
 }
 
 impl<T> Trc<[T]> {
@@ -679,7 +710,8 @@ impl<T: ?Sized> Trc<T> {
     /// ```
     #[inline]
     pub fn as_ptr(this: &Self) -> *const T {
-        addr_of!(unsafe { this.shared.as_ref() }.data)
+        let sharedptr = NonNull::as_ptr(this.shared);
+        unsafe { addr_of_mut!((*sharedptr).data) }
     }
 
     /// Get a &mut reference to the internal data if there are no other `Trc` or [`Weak`] pointers to the same allocation.
@@ -726,6 +758,27 @@ impl<T: ?Sized> Trc<T> {
         } else {
             None
         }
+    }
+
+    /// Converts a `Trc<T>` into `*const T`, without freeing the allocation.
+    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
+    /// 
+    /// ```rust
+    /// use trc::Trc;
+    /// 
+    /// let trc = Trc::new(100);
+    /// let ptr = Trc::into_raw(trc);
+    /// 
+    /// assert_eq!(unsafe { *ptr }, 100);
+    /// 
+    /// unsafe { Trc::from_raw(ptr) };
+    /// ```
+    pub fn into_raw(this: Self) -> *const T {
+        let ptr = Self::as_ptr(&this);
+
+        drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
+        forget(this);
+        ptr
     }
 }
 
