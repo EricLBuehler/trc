@@ -70,7 +70,6 @@ pub struct SharedTrcInternal<T: ?Sized> {
 /// For ease of developer use, `Trc<T>` comes with [`Deref`] implemented.
 /// `Trc<T>` automatically dereferences to `&T`. This allows method calls and member acess of `T`.
 /// `DerefMut` is not directly implemented as that could cause UB due to the possibility of multiple `&mut` references to the `Trc`.
-/// However, `Trc<T>` does provide an unsafe `.deref_mut()` method to get a `&mut T`.
 /// To prevent name clashes, `Trc<T>`'s functions are associated.
 ///
 /// ## Footnote on `dyn` wrapping
