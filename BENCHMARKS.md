@@ -23,7 +23,7 @@ MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test
 MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 ```
 
-<span style="color:green">**All tests passed**</span>.
+<span style="color:green">**All tests passed.**</span>
 
 ### Clone
 | Type | Mean time |
@@ -99,7 +99,7 @@ MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test
 MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 ```
 
-<span style="color:green">**All tests passed**</span>.
+<span style="color:green">**All tests passed.**</span>
 
 ### Clone   
 | Type | Mean time |
@@ -176,7 +176,7 @@ MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test
 MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 ```
 
-<span style="color:green">**All tests passed**</span>.
+<span style="color:green">**All tests passed.**</span>
 
 
 ### Clone
