@@ -29,7 +29,7 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 pub struct SharedTrcInternal<T: ?Sized> {
     atomicref: AtomicUsize,
     weakcount: AtomicUsize,
-    pub data: T,
+    data: T,
 }
 
 /// `Trc` is a performant heap-allocated smart pointer for Rust that implements thread reference counting.
@@ -116,20 +116,20 @@ pub struct Trc<T: ?Sized> {
 /// [`Weak`], `SharedTrc` is one of the ways to send a `Trc` across threads. However, unlike `Weak`, `SharedTrc` does not
 /// modify the weak count - and only modifies the strong count. In addition, `SharedTrc` will not fail on conversion
 /// back to a `Trc` because it prevents the data `T` from being dropped.
-/// 
+///
 /// ## Examples
-/// 
+///
 /// Example in a single thread:
 /// ```
 /// use trc::Trc;
 /// use trc::SharedTrc;
-/// 
+///
 /// let trc = Trc::new(String::from("Trc"));
 /// let shared: SharedTrc<_> = (&trc).into();
 /// let trc2: Trc<String> = shared.into();
 /// assert_eq!(*trc, *trc2);
 /// ```
-/// 
+///
 /// See [`Trc`] or [`Weak`] for an example with multiple threads.
 pub struct SharedTrc<T: ?Sized> {
     data: NonNull<SharedTrcInternal<T>>,
@@ -142,7 +142,7 @@ impl<T: ?Sized> SharedTrc<T> {
     /// Convert a `Trc<T>` to a `SharedTrc<T>`, incrementing it's atomic reference count.
     /// While this `SharedTrc<T>` is alive, the data contained by `Trc<T>` will not be dropped, which is
     /// unlike a `Weak<T>`.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -167,7 +167,7 @@ impl<T: ?Sized> SharedTrc<T> {
     /// Convert a `SharedTrc<T>` to a `Trc<T>`. To prevent memory leaks, this function takes
     /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it
     /// prevents the data from being dropped.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -189,7 +189,7 @@ impl<T: ?Sized> SharedTrc<T> {
     }
 
     /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc<T>`.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use std::thread;
@@ -217,7 +217,7 @@ impl<T: ?Sized> SharedTrc<T> {
 
 impl<T: ?Sized> Clone for SharedTrc<T> {
     /// Clone a `SharedTrc<T>` (increment the strong count).
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -266,7 +266,7 @@ impl<T: ?Sized> From<SharedTrc<T>> for Trc<T> {
     /// Convert a `SharedTrc<T>` to a `Trc<T>`. To prevent memory leaks, this function takes
     /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it
     /// prevents the data from being dropped.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -286,7 +286,7 @@ impl<T: ?Sized> From<&Trc<T>> for SharedTrc<T> {
     /// Convert a `Trc<T>` to a `SharedTrc<T>`, incrementing it's atomic reference count.
     /// While this `SharedTrc<T>` is alive, the data contained by `Trc<T>` will not be dropped, which is
     /// unlike a `Weak<T>`.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -304,7 +304,7 @@ impl<T: ?Sized> From<Trc<T>> for SharedTrc<T> {
     /// Convert a `Trc<T>` to a `SharedTrc<T>`, incrementing it's atomic reference count.
     /// While this `SharedTrc<T>` is alive, the data contained by `Trc<T>` will not be dropped, which is
     /// unlike a `Weak<T>`.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -330,7 +330,7 @@ fn sub_value(value: &AtomicUsize, offset: usize) -> usize {
 
 impl<T> Trc<T> {
     /// Creates a new `Trc<T>` from the provided data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -357,7 +357,7 @@ impl<T> Trc<T> {
     }
 
     /// Creates a new uninitialized `Trc<T>`.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -391,7 +391,7 @@ impl<T> Trc<T> {
     /// Creates a new cyclic `Trc<T>` from the provided data. It allows the storage of `Weak<T>` which points the the allocation
     /// of `Trc<T>`inside of `T`. Holding a `Trc<T>` inside of `T` would cause a memory leak. This method works around this by
     /// providing a `Weak<T>` during the consturction of the `Trc<T>`, so that the `T` can store the `Weak<T>` internally.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -691,7 +691,7 @@ impl<T> Trc<[MaybeUninit<T>]> {
 
 impl<T: ?Sized> Trc<T> {
     /// Return the local thread reference count of the object, which is how many `Trc<T>`s in this thread point to the data referenced by this `Trc<T>`.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -731,7 +731,7 @@ impl<T: ?Sized> Trc<T> {
 
     /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of `Trc<T>`.
     /// It includes the implicit weak reference held by all `Trc<T>` to themselves.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -752,7 +752,7 @@ impl<T: ?Sized> Trc<T> {
     }
 
     /// Checks if the other `Trc<T>` is equal to this one according to their internal pointers.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -767,7 +767,7 @@ impl<T: ?Sized> Trc<T> {
     }
 
     /// Gets the raw pointer to the most inner layer of `Trc<T>`.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -906,7 +906,7 @@ impl<T: ?Sized> Deref for Trc<T> {
     type Target = T;
 
     /// Get an immutable reference to the internal data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1005,7 +1005,7 @@ impl<T: ?Sized> Pointer for Trc<T> {
 
 impl<T> From<T> for Trc<T> {
     /// Create a new `Trc<T>` from the provided data. This is equivalent to calling `Trc::new` on the same data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1030,7 +1030,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// "Greater than or equal to" comparison for two `Trc<T>`s.
     ///
     /// Calls `.partial_cmp` on the data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1047,7 +1047,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// "Less than or equal to" comparison for two `Trc<T>`s.
     ///
     /// Calls `.le` on the data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1064,7 +1064,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// "Greater than" comparison for two `Trc<T>`s.
     ///
     /// Calls `.gt` on the data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1081,7 +1081,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// "Less than" comparison for two `Trc<T>`s.
     ///
     /// Calls `.lt` on the data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1098,7 +1098,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// Partial comparison for two `Trc<T>`s.
     ///
     /// Calls `.partial_cmp` on the data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1116,7 +1116,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
 
 impl<T: Ord> Ord for Trc<T> {
     /// Comparison for two `Trc<T>`s. The two are compared by calling `.cmp` on the inner values.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1138,7 +1138,7 @@ impl<T: PartialEq> PartialEq for Trc<T> {
     /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations.
     ///
     /// Calls `.eq` on the data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1155,7 +1155,7 @@ impl<T: PartialEq> PartialEq for Trc<T> {
     /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations.
     ///
     /// Calls `.ne` on the data.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -1197,7 +1197,6 @@ impl<T: Error> Error for Trc<T> {
 }
 
 impl<T: ?Sized> Unpin for Trc<T> {}
-
 impl<T: ?Sized> UnwindSafe for Trc<T> {}
 
 fn create_from_slice<T: Clone>(slice: &[T]) -> *mut SharedTrcInternal<[T]> {
@@ -1365,7 +1364,7 @@ impl<T: ?Sized> Weak<T> {
 
 impl<T: ?Sized> Clone for Weak<T> {
     /// Clone a `Weak<T>` (increment the weak count).
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
