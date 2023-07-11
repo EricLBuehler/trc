@@ -21,12 +21,24 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("Multiple deref Rc", |b| b.iter(multi_deref_rc));
     c.bench_function("Multiple threads Trc", |b| b.iter(multi_thread_trc));
     c.bench_function("Multiple threads Arc", |b| b.iter(multi_thread_arc));
-    c.bench_function("Multiple threads Trc Medium", |b| b.iter(multi_thread_trc_medium));
-    c.bench_function("Multiple threads Arc Medium", |b| b.iter(multi_thread_arc_medium));
-    c.bench_function("Multiple threads Trc Long", |b| b.iter(multi_thread_trc_long));
-    c.bench_function("Multiple threads Arc Long", |b| b.iter(multi_thread_arc_long));
-    c.bench_function("Multiple threads Trc Super", |b| b.iter(multi_thread_trc_super));
-    c.bench_function("Multiple threads Arc Super", |b| b.iter(multi_thread_arc_super));
+    c.bench_function("Multiple threads Trc Medium", |b| {
+        b.iter(multi_thread_trc_medium)
+    });
+    c.bench_function("Multiple threads Arc Medium", |b| {
+        b.iter(multi_thread_arc_medium)
+    });
+    c.bench_function("Multiple threads Trc Long", |b| {
+        b.iter(multi_thread_trc_long)
+    });
+    c.bench_function("Multiple threads Arc Long", |b| {
+        b.iter(multi_thread_arc_long)
+    });
+    c.bench_function("Multiple threads Trc Super", |b| {
+        b.iter(multi_thread_trc_super)
+    });
+    c.bench_function("Multiple threads Arc Super", |b| {
+        b.iter(multi_thread_arc_super)
+    });
 }
 
 fn clone_trc() {

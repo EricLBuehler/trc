@@ -2,14 +2,20 @@
 #![allow(clippy::mut_from_ref)]
 
 use std::{
+    alloc::{alloc, Layout},
     borrow::Borrow,
     fmt::{Debug, Display, Pointer},
     hash::{Hash, Hasher},
+    mem::{forget, ManuallyDrop, MaybeUninit},
     ops::Deref,
     pin::Pin,
-    ptr::{self, addr_of, addr_of_mut, NonNull, slice_from_raw_parts_mut, write}, alloc::{Layout, alloc}, mem::{MaybeUninit, ManuallyDrop, forget}
+    ptr::{self, addr_of, addr_of_mut, slice_from_raw_parts_mut, write, NonNull},
 };
-use std::{os::fd::{AsFd, AsRawFd}, error::Error, panic::UnwindSafe};
+use std::{
+    error::Error,
+    os::fd::{AsFd, AsRawFd},
+    panic::UnwindSafe,
+};
 
 use alloc::boxed::Box;
 
@@ -73,7 +79,7 @@ pub struct SharedTrcInternal<T: ?Sized> {
 /// CoerceUnsized, DispatchFromDyn, and Reciever (with arbitrary_self_types) are stablized.
 /// In addition, the internal structure of `Trc<T>` means that [`NonNull`] cannot be used as an indirection for CoerceUnsized due to it's
 /// internals (`*const T`), and so wrapping `dyn` types cannot be implemented. Howeover, one can use a [`Box`] as a wrapper and then wrap with `Trc<T>`.
-/// 
+///
 /// ## Examples
 ///
 /// Example in a single thread:
@@ -293,7 +299,6 @@ fn sub_value(value: &AtomicUsize, offset: usize) -> usize {
     value.fetch_sub(offset, core::sync::atomic::Ordering::AcqRel)
 }
 
-
 impl<T> Trc<T> {
     /// Creates a new `Trc<T>` from the provided data.
     /// ```
@@ -325,11 +330,11 @@ impl<T> Trc<T> {
     /// use trc::Trc;
     ///
     /// let mut trc = Trc::new_uninit();
-    /// 
+    ///
     /// Trc::get_mut(&mut trc).unwrap().write(5);
-    /// 
+    ///
     /// let five = unsafe { trc.assume_init() };
-    /// 
+    ///
     /// assert_eq!(*five, 5);
     /// ```
     #[inline]
@@ -399,7 +404,7 @@ impl<T> Trc<T> {
             shared: init_ptr,
         }
     }
-    
+
     /// Creates a new `Pin<Trc<T>>`. If `T` does not implement [`Unpin`], then the data will be pinned in memory and unable to be moved.
     #[inline]
     pub fn pin(data: T) -> Pin<Trc<T>> {
@@ -431,7 +436,9 @@ impl<T> Trc<T> {
     #[inline]
     pub fn try_unwrap(mut this: Self) -> Result<T, Self> {
         if unsafe { this.shared.as_ref() }
-            .atomicref.load(core::sync::atomic::Ordering::Acquire) != 1
+            .atomicref
+            .load(core::sync::atomic::Ordering::Acquire)
+            != 1
             || *unsafe { this.threadref.as_ref() } != 1
         {
             return Err(this);
@@ -481,7 +488,7 @@ impl<T> Trc<T> {
     ///     (None, Some(3)) | (Some(3), None)
     /// ));
     /// ```
-    /// 
+    ///
     #[inline]
     pub fn into_inner(this: Self) -> Option<T> {
         let this = core::mem::ManuallyDrop::new(this);
@@ -503,25 +510,25 @@ impl<T> Trc<T> {
 
         //Clean up implicit self-reference
         drop(Weak { data: this.shared });
-        
+
         Some(elem)
     }
 
     /// Converts a `*const T` into `Trc<T>`. The caller must uphold the below safety constraints.
     /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
-    /// 
+    ///
     /// # Safety
     /// - The given pointer must be a valid pointer to `T` that came from `into_raw`.
     /// - After `from_raw`, the pointer must not be accessed.
-    /// 
+    ///
     /// ```rust
     /// use trc::Trc;
-    /// 
+    ///
     /// let trc = Trc::new(100);
     /// let ptr = Trc::into_raw(trc);
-    /// 
+    ///
     /// assert_eq!(unsafe { *ptr }, 100);
-    /// 
+    ///
     /// unsafe { Trc::from_raw(ptr) };
     /// ```
     pub unsafe fn from_raw(ptr: *const T) -> Self {
@@ -531,7 +538,7 @@ impl<T> Trc<T> {
         let n = layout.size();
 
         let data_ptr = (ptr as *const u8).sub(n) as *mut SharedTrcInternal<T>;
-        
+
         Trc {
             threadref: NonNull::from(Box::leak(tbx)),
             shared: NonNull::new_unchecked(data_ptr),
@@ -546,21 +553,26 @@ impl<T> Trc<[T]> {
     /// use trc::Trc;
     ///
     /// let mut trc = Trc::new_uninit();
-    /// 
+    ///
     /// Trc::get_mut(&mut trc).unwrap().write(5);
-    /// 
+    ///
     /// let five = unsafe { trc.assume_init() };
-    /// 
+    ///
     /// assert_eq!(*five, 5);
     /// ```
     pub fn new_uninit_slice(len: usize) -> Trc<[MaybeUninit<T>]> {
         let value_layout = Layout::array::<T>(len).unwrap();
-        let layout = Layout::new::<SharedTrcInternal<()>>().extend(value_layout).unwrap().0.pad_to_align();
+        let layout = Layout::new::<SharedTrcInternal<()>>()
+            .extend(value_layout)
+            .unwrap()
+            .0
+            .pad_to_align();
 
-        let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, len) as *mut SharedTrcInternal<[MaybeUninit<T>]>;
+        let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, len)
+            as *mut SharedTrcInternal<[MaybeUninit<T>]>;
         unsafe { write(&mut (*res).atomicref, AtomicUsize::new(1)) };
         unsafe { write(&mut (*res).weakcount, AtomicUsize::new(1)) };
-        
+
         let elems = unsafe { addr_of_mut!((*res).data) } as *mut MaybeUninit<T>;
         for i in 0..len {
             unsafe { write(elems.add(i), MaybeUninit::<T>::uninit()) };
@@ -570,17 +582,17 @@ impl<T> Trc<[T]> {
         Trc {
             threadref: NonNull::from(Box::leak(tbx)),
             shared: unsafe { NonNull::new_unchecked(res) },
-        }   
+        }
     }
 }
 
 impl<T> Trc<MaybeUninit<T>> {
     /// Converts to `Trc<T>`.
-    /// 
+    ///
     /// # Safety
     /// As with `MaybeUninit::assume_init`, it is up to the caller to guarantee that the inner value really is in an initialized state.
     /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
-    /// 
+    ///
     /// ```rust
     /// use trc::Trc;
     ///
@@ -598,17 +610,20 @@ impl<T> Trc<MaybeUninit<T>> {
     /// ```
     pub unsafe fn assume_init(self) -> Trc<T> {
         let threadref = self.threadref;
-        Trc { shared: NonNull::new_unchecked(ManuallyDrop::new(self).shared.as_ptr().cast()), threadref }
+        Trc {
+            shared: NonNull::new_unchecked(ManuallyDrop::new(self).shared.as_ptr().cast()),
+            threadref,
+        }
     }
 }
 
 impl<T> Trc<[MaybeUninit<T>]> {
     /// Converts to `Trc<[T]>`.
-    /// 
+    ///
     /// # Safety
     /// As with `MaybeUninit::assume_init`, it is up to the caller to guarantee that the inner value really is in an initialized state.
     /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
-    /// 
+    ///
     /// ```rust
     /// use trc::Trc;
     ///
@@ -626,7 +641,10 @@ impl<T> Trc<[MaybeUninit<T>]> {
     /// ```
     pub unsafe fn assume_init(self) -> Trc<[T]> {
         let threadref = self.threadref;
-        Trc { shared: NonNull::new_unchecked(ManuallyDrop::new(self).shared.as_ptr() as _), threadref }
+        Trc {
+            shared: NonNull::new_unchecked(ManuallyDrop::new(self).shared.as_ptr() as _),
+            threadref,
+        }
     }
 }
 
@@ -751,7 +769,7 @@ impl<T: ?Sized> Trc<T> {
                 .store(1, core::sync::atomic::Ordering::Release);
 
             if unique && *unsafe { this.threadref.as_ref() } == 1 {
-                Some(unsafe {&mut (*this.shared.as_ptr()).data })
+                Some(unsafe { &mut (*this.shared.as_ptr()).data })
             } else {
                 None
             }
@@ -762,15 +780,15 @@ impl<T: ?Sized> Trc<T> {
 
     /// Converts a `Trc<T>` into `*const T`, without freeing the allocation.
     /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
-    /// 
+    ///
     /// ```rust
     /// use trc::Trc;
-    /// 
+    ///
     /// let trc = Trc::new(100);
     /// let ptr = Trc::into_raw(trc);
-    /// 
+    ///
     /// assert_eq!(unsafe { *ptr }, 100);
-    /// 
+    ///
     /// unsafe { Trc::from_raw(ptr) };
     /// ```
     pub fn into_raw(this: Self) -> *const T {
@@ -789,7 +807,7 @@ impl<T: Clone> Trc<T> {
     ///
     /// ```
     /// use trc::Trc;
-    /// 
+    ///
     /// let inner = String::from("Trc");
     /// let ptr = inner.as_ptr();
     ///
@@ -1092,7 +1110,7 @@ impl<T: AsRawFd> AsRawFd for Trc<T> {
     }
 }
 
-#[allow(deprecated)] 
+#[allow(deprecated)]
 impl<T: Error> Error for Trc<T> {
     fn cause(&self) -> Option<&dyn Error> {
         (**self).cause()
@@ -1111,14 +1129,19 @@ impl<T: ?Sized> UnwindSafe for Trc<T> {}
 
 fn create_from_slice<T: Clone>(slice: &[T]) -> *mut SharedTrcInternal<[T]> {
     let value_layout = Layout::array::<T>(slice.len()).unwrap();
-    let layout = Layout::new::<SharedTrcInternal<()>>().extend(value_layout).unwrap().0.pad_to_align();
+    let layout = Layout::new::<SharedTrcInternal<()>>()
+        .extend(value_layout)
+        .unwrap()
+        .0
+        .pad_to_align();
 
-    let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, slice.len()) as *mut SharedTrcInternal<[T]>;
+    let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, slice.len())
+        as *mut SharedTrcInternal<[T]>;
     unsafe { write(&mut (*res).atomicref, AtomicUsize::new(1)) };
     unsafe { write(&mut (*res).weakcount, AtomicUsize::new(1)) };
 
     let elems = unsafe { addr_of_mut!((*res).data) } as *mut T;
-    for (n,i) in slice.iter().enumerate() {
+    for (n, i) in slice.iter().enumerate() {
         unsafe { write(elems.add(n), i.clone()) };
     }
     res
@@ -1130,22 +1153,22 @@ trait TrcFromSlice<T> {
 
 impl<T: Clone> TrcFromSlice<T> for Trc<[T]> {
     fn from_slice(slice: &[T]) -> Self {
-        let shared = create_from_slice(slice);     
+        let shared = create_from_slice(slice);
         let tbx = Box::new(1);
 
         Trc {
             threadref: NonNull::from(Box::leak(tbx)),
             shared: unsafe { NonNull::new_unchecked(shared) },
-        }   
+        }
     }
 }
 
 impl<T: Clone> From<&[T]> for Trc<[T]> {
     /// From conversion from a  reference to a slice of type `T` (`&[T]`) to a `Trc<[T]>`.
-    /// 
+    ///
     /// ```
     /// use trc::Trc;
-    /// 
+    ///
     /// let vec = (1..100).collect::<Vec<i32>>();
     /// let slice = &vec[2..5];
     /// let trc = Trc::<[i32]>::from(slice);
@@ -1159,7 +1182,6 @@ impl<T: Clone> From<&[T]> for Trc<[T]> {
 //TODO: Integration with standard library for both, or use lib & conditional for just CoerceUnsized
 //impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Trc<U>> for Trc<T> {}
 //impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::DispatchFromDyn<Trc<U>> for Trc<T> {}
-
 
 /// `Weak<T>` is a non-owning reference to `Trc<T>`'s data. It is used to prevent cyclic references which cause memory to never be freed.
 /// `Weak<T>` does not keep the value alive (which can be dropped), they only keep the backing allocation alive. `Weak<T>` cannot even directly access the memory,
