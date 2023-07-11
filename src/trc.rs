@@ -1252,10 +1252,9 @@ impl<T: Clone> From<&[T]> for Trc<[T]> {
     }
 }
 
-//TODO: Integration with standard library for all, or use lib & conditional for just CoerceUnsized
+//TODO: Integration with standard library for both, or use lib & conditional for just CoerceUnsized
 //impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Trc<U>> for Trc<T> {}
-//impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::DispatchFromDyn<Trc<U>> for Trc<T> {}
-//impl<T: ?Sized> core::ops::Receiver for Trc<T> {}
+//impl<T: ?Sized> std::ops::Receiver for Trc<T> {}
 
 /// `Weak<T>` is a non-owning reference to `Trc<T>`'s data. It is used to prevent cyclic references which cause memory to never be freed.
 /// `Weak<T>` does not keep the value alive (which can be dropped), they only keep the backing allocation alive. `Weak<T>` cannot even directly access the memory,
