@@ -43,10 +43,10 @@ pub struct SharedTrcInternal<T: ?Sized> {
 /// A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
 /// A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.
 /// They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
-/// must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (whcih can be dropped), and only keeps the backing allocation alive.
+/// must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
 /// See [`Weak`] for more information.
 ///
-/// ## Sending data accross threads with `SharedTrc<T>`
+/// ## Sending data across threads with `SharedTrc<T>`
 /// To soundly implement thread safety `Trc<T>` does not implement [`Send`] or [`Sync`].
 /// However, [`SharedTrc`] does, and it is the only way to safely send a `Trc<T>` across threads.
 /// See [`SharedTrc`] for it's API, which is similar to that of [`Weak`].
@@ -63,18 +63,18 @@ pub struct SharedTrcInternal<T: ?Sized> {
 /// ## Drop behavior
 ///
 /// When a `Trc<T>` is dropped the local thread reference count is decremented. If it is zero, the atomic reference count is also decremented.
-/// If the atomic reference count is zero, then the internal data is dropped. Regardless of wherether the atomic refernce count is zero, the
+/// If the atomic reference count is zero, then the internal data is dropped. Regardless of whether the atomic reference count is zero, the
 /// local `Trc<T>` is dropped.
 ///
 /// ## [`Deref`] and `DerefMut` behavior
 /// For ease of developer use, `Trc<T>` comes with [`Deref`] implemented.
-/// `Trc<T>` automatically dereferences to `&T`. This allows method calls and member acess of `T`.
+/// `Trc<T>` automatically dereferences to `&T`. This allows method calls and member access of `T`.
 /// `DerefMut` is not directly implemented as that could cause UB due to the possibility of multiple `&mut` references to the `Trc`.
 /// To prevent name clashes, `Trc<T>`'s functions are associated.
 ///
 /// ## Footnote on `dyn` wrapping
-/// Rust's limitations mean that `Trc` will not be able to be used as a method reciever wrapper until
-/// CoerceUnsized, and Reciever (with arbitrary_self_types) are stablized. However, DispatchFromDyn cannot be implemented due
+/// Rust's limitations mean that `Trc` will not be able to be used as a method receiver wrapper until
+/// CoerceUnsized, and Receiver (with arbitrary_self_types) are stablized. However, DispatchFromDyn cannot be implemented due
 /// to the requirements of thread reference counting, and so `Trc` will not be able to be used as a trait object method receiver.
 /// As an alternative, one can use a [`Box`] as a wrapper and then wrap with `Trc<T>`.
 ///
@@ -111,7 +111,7 @@ pub struct Trc<T: ?Sized> {
     threadref: NonNull<usize>,
 }
 
-/// `SharedTrc<T>` is a thread-safe wrapper used to send `Trc<T>`s accross threads.
+/// `SharedTrc<T>` is a thread-safe wrapper used to send `Trc<T>`s across threads.
 /// Unlike [`Trc`] (which is `!Send` and `!Sync`), `SharedTrc` is [`Send`] and [`Sync`]. This means that along with
 /// [`Weak`], `SharedTrc` is one of the ways to send a `Trc` across threads. However, unlike `Weak`, `SharedTrc` does not
 /// modify the weak count - and only modifies the strong count. In addition, `SharedTrc` will not fail on conversion
@@ -390,7 +390,7 @@ impl<T> Trc<T> {
 
     /// Creates a new cyclic `Trc<T>` from the provided data. It allows the storage of `Weak<T>` which points the the allocation
     /// of `Trc<T>`inside of `T`. Holding a `Trc<T>` inside of `T` would cause a memory leak. This method works around this by
-    /// providing a `Weak<T>` during the consturction of the `Trc<T>`, so that the `T` can store the `Weak<T>` internally.
+    /// providing a `Weak<T>` during the construction of the `Trc<T>`, so that the `T` can store the `Weak<T>` internally.
     ///
     /// # Examples
     /// ```
@@ -448,7 +448,7 @@ impl<T> Trc<T> {
 
     /// Returns the inner value if the `Trc` has exactly one atomic and local reference.
     /// Otherwise, an [`Err`] is returned with the same `Trc` that was passed in.
-    /// This will succed even if there are outstanding weak references.
+    /// This will succeed even if there are outstanding weak references.
     ///
     /// # Examples
     /// This works:
@@ -813,7 +813,7 @@ impl<T: ?Sized> Trc<T> {
                 .load(core::sync::atomic::Ordering::Acquire)
                 == 1;
 
-            //Synchronize with the previouse Acquire
+            //Synchronize with the previous Acquire
             unsafe { this.shared.as_ref() }
                 .weakcount
                 .store(1, core::sync::atomic::Ordering::Release);

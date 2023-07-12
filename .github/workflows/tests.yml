@@ -33,3 +33,14 @@ jobs:
       run: MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test
     - name: Miri with tree borrows
       run: MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
+
+  typos:
+    runs-on: ubunti-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Typo
+      - run: cargo install typos-cli
+    - name: Run Typo
+      - run: typo
+    

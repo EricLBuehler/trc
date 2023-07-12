@@ -11,10 +11,10 @@
 //! A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
 //! A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.
 //! They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
-//! must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (whcih can be dropped), and only keeps the backing allocation alive.
+//! must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
 //! See [`Weak`] for more information.
 //!
-//! ## Sending data accross threads with `SharedTrc<T>`
+//! ## Sending data across threads with `SharedTrc<T>`
 //! To soundly implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`].
 //! However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across
 //! threads. See [`SharedTrc`] for it's API, which is similar to that of `Weak`.
