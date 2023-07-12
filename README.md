@@ -152,4 +152,4 @@ Click [here](BENCHMARKS.md) for more benchmarks. Multiple different operating sy
 ![Trc vs Arc performance](./figures/performance.png)
 
 ## Use
-To use `Trc`, simply run `cargo add trc`, or add `trc = "1.2.1"`. Optionally, you can always use the latest version by adding `trc = {git = "https://github.com/EricLBuehler/trc.git"}`.
+To use `Trc`, simply run `cargo add trc`, or add `trc = "1.2.2"`. Optionally, you can always use the latest version by adding `trc = {git = "https://github.com/EricLBuehler/trc.git"}`.
