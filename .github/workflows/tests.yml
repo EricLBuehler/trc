@@ -42,5 +42,5 @@ jobs:
     - name: Install Typo
       run: cargo install typos-cli
     - name: Run Typo
-      run: typo
+      run: typos
     
