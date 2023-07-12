@@ -1199,33 +1199,33 @@ impl<T: Error> Error for Trc<T> {
 impl<T: ?Sized> Unpin for Trc<T> {}
 impl<T: ?Sized> UnwindSafe for Trc<T> {}
 
-fn create_from_slice<T: Clone>(slice: &[T]) -> *mut SharedTrcInternal<[T]> {
-    let value_layout = Layout::array::<T>(slice.len()).unwrap();
+fn create_from_iterator_exact<T>(iterator: impl Iterator<Item = T> + ExactSizeIterator) -> *mut SharedTrcInternal<[T]> {
+    let value_layout = Layout::array::<T>(iterator.len()).unwrap();
     let layout = Layout::new::<SharedTrcInternal<()>>()
         .extend(value_layout)
         .unwrap()
         .0
         .pad_to_align();
 
-    let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, slice.len())
+    let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, iterator.len())
         as *mut SharedTrcInternal<[T]>;
     unsafe { write(&mut (*res).atomicref, AtomicUsize::new(1)) };
     unsafe { write(&mut (*res).weakcount, AtomicUsize::new(1)) };
 
     let elems = unsafe { addr_of_mut!((*res).data) } as *mut T;
-    for (n, i) in slice.iter().enumerate() {
-        unsafe { write(elems.add(n), i.clone()) };
+    for (n, i) in iterator.enumerate() {
+        unsafe { write(elems.add(n), i) };
     }
     res
 }
 
-trait TrcFromSlice<T> {
-    fn from_slice(slice: &[T]) -> Self;
+trait TrcFromIter<T> {
+    fn from_iter(slice: impl Iterator<Item = T> + ExactSizeIterator) -> Self;
 }
 
-impl<T: Clone> TrcFromSlice<T> for Trc<[T]> {
-    fn from_slice(slice: &[T]) -> Self {
-        let shared = create_from_slice(slice);
+impl<T: Clone + ?Sized> TrcFromIter<T> for Trc<[T]> {
+    fn from_iter(slice: impl Iterator<Item = T> + ExactSizeIterator) -> Self {
+        let shared = create_from_iterator_exact(slice);
         let tbx = Box::new(1);
 
         Trc {
@@ -1234,9 +1234,8 @@ impl<T: Clone> TrcFromSlice<T> for Trc<[T]> {
         }
     }
 }
-
-impl<T: Clone> From<&[T]> for Trc<[T]> {
-    /// From conversion from a  reference to a slice of type `T` (`&[T]`) to a `Trc<[T]>`.
+impl<T: Clone + ?Sized> From<&[T]> for Trc<[T]> {
+    /// From conversion from a reference to a slice of type `T` (`&[T]`) to a `Trc<[T]>`.
     ///
     /// # Examples
     /// ```
@@ -1248,7 +1247,23 @@ impl<T: Clone> From<&[T]> for Trc<[T]> {
     /// assert_eq!(&*trc, slice);
     /// ```
     fn from(value: &[T]) -> Trc<[T]> {
-        <Self as TrcFromSlice<T>>::from_slice(value)
+        <Self as TrcFromIter<T>>::from_iter(value.iter().cloned())
+    }
+}
+
+impl<T: Clone + ?Sized> FromIterator<T> for Trc<[T]> {
+    /// From conversion from an iterator (`impl IntoIterator<Item = T>`) to `Trc<[T]>`. Due to Rust's unstable trait specialization feature,
+    /// there is no special case for iterators that implement [`ExactSizeIterator`].
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let trc = Trc::<[i32]>::from_iter(vec![1,2,3]);
+    /// assert_eq!(&*trc, vec![1,2,3]);
+    /// ```
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self::from(&iter.into_iter().collect::<Vec<_>>()[..])
     }
 }
 
