@@ -1,9 +1,6 @@
 use std::thread;
 
-use crate::{
-    trc::{SharedTrc, Trc},
-    Weak,
-};
+use crate::{SharedTrc, Trc, Weak};
 
 struct Data {
     string: String,
