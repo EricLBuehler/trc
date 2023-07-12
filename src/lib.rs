@@ -27,17 +27,15 @@ compile_error!("Cannot use `Trc` on a system without atomics.");
 use std::{
     alloc::{alloc, Layout},
     borrow::Borrow,
+    error::Error,
     fmt::{Debug, Display, Pointer},
     hash::{Hash, Hasher},
     mem::{forget, ManuallyDrop, MaybeUninit},
     ops::Deref,
-    pin::Pin,
-    ptr::{self, addr_of, addr_of_mut, slice_from_raw_parts_mut, write, NonNull},
-};
-use std::{
-    error::Error,
     os::fd::{AsFd, AsRawFd},
     panic::UnwindSafe,
+    pin::Pin,
+    ptr::{self, addr_of, addr_of_mut, slice_from_raw_parts_mut, write, NonNull},
 };
 
 use core::sync::atomic::AtomicUsize;
