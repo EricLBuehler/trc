@@ -5,7 +5,7 @@ Test platforms:
 - Ubuntu 20.04 + Intel Xeon Platinum 8358 (x86_64)
 - Debian 6.1.20 + ARM Neoverse-N1 (aarch64)
 
-## WSL2 5.15.90 + Intel Xeon E3-1535M (x86_64)
+## WSL2 (Ubuntu 22.04) 5.15.90 + Intel Xeon E3-1535M (x86_64)
 
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
