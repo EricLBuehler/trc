@@ -15,8 +15,9 @@
 //! See [`Weak`] for more information.
 //!
 //! ## Sending data accross threads with `SharedTrc<T>`
-//! To soundly implement thread safety `Trc<T>` does not implement [`Send`] or [`Sync`].
-//! However, [`SharedTrc`] does, and it is the only way to safely send a `Trc<T>` across threads.
+//! To soundly implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`].
+//! However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across
+//! threads. See [`SharedTrc`] for it's API, which is similar to that of `Weak`.
 //! See [`SharedTrc`] for it's API, which is similar to that of [`Weak`].
 
 extern crate alloc;
