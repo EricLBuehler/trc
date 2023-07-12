@@ -35,7 +35,7 @@ jobs:
       run: MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 
   typos:
-    runs-on: ubunti-latest
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
