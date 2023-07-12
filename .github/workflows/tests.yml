@@ -40,7 +40,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install Typo
-      - run: cargo install typos-cli
+      run: cargo install typos-cli
     - name: Run Typo
-      - run: typo
+      run: typo
     
