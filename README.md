@@ -15,7 +15,7 @@ Thread reference counting sets the atomic reference count to the number of threa
 A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
 A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.
 They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
-must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (whcih can be dropped), and only keeps the backing allocation alive.
+must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
 
 To soundly implement thread safety `Trc<T>` does not implement `Send` or `Sync`. However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across threads. See `SharedTrc` for it's API, which is similar to that of `Weak`.
 
@@ -82,8 +82,8 @@ assert_eq!(*trc, 100);
 ```
 
 ## Benchmarks
-Benchmarks via Criterion. As can be seen, `Trc`'s performance realy shines when there are many Clones.
-The reason `Trc` does not do as well for fewer operations is because it needs to allocate `n+1` blocks of memory for `n` threads, and
+Benchmarks via Criterion. As can be seen, `Trc`'s performance really shines when there are many Clones.
+The reason `Trc` does not do as well for fewer operations is that it needs to allocate `n+1` blocks of memory for `n` threads, and
 so for 1 thread, there are 2 allocations. However, after the initial allocations, `Trc` performs very well - 3.81x `Arc`'s time for Clones. 
 
 Click [here](BENCHMARKS.md) for more benchmarks. Multiple different operating systems, CPUs, and architectures are tested. 
@@ -130,7 +130,7 @@ Click [here](BENCHMARKS.md) for more benchmarks. Multiple different operating sy
 | Trc | 3.480ms |
 | Arc | 9.415ms |
 
-2.71x faster - the allocation cost of `SharedTrc` begins to become replaced by the `Clone` effiency.
+2.71x faster - the allocation cost of `SharedTrc` begins to become replaced by the `Clone` efficiency.
 
 ### Multiple Threads Drop and Clone (100000 times)
 | Type | Mean time |
