@@ -672,7 +672,6 @@ impl<T: Error> Error for SharedTrc<T> {
 impl<T: ?Sized> Unpin for SharedTrc<T> {}
 impl<T: ?Sized> UnwindSafe for SharedTrc<T> {}
 
-
 #[inline]
 fn sum_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::Ordering) -> usize {
     value.fetch_add(offset, ordering)
@@ -1554,7 +1553,9 @@ impl<T: Error> Error for Trc<T> {
 impl<T: ?Sized> Unpin for Trc<T> {}
 impl<T: ?Sized> UnwindSafe for Trc<T> {}
 
-fn create_from_iterator_exact<T>(iterator: impl Iterator<Item = T> + ExactSizeIterator) -> *mut SharedTrcInternal<[T]> {
+fn create_from_iterator_exact<T>(
+    iterator: impl Iterator<Item = T> + ExactSizeIterator,
+) -> *mut SharedTrcInternal<[T]> {
     let value_layout = Layout::array::<T>(iterator.len()).unwrap();
     let layout = Layout::new::<SharedTrcInternal<()>>()
         .extend(value_layout)
