@@ -26,7 +26,7 @@ use core::sync::atomic::AtomicUsize;
 const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 
 #[repr(C)]
-pub struct SharedTrcInternal<T: ?Sized> {
+struct SharedTrcInternal<T: ?Sized> {
     atomicref: AtomicUsize,
     weakcount: AtomicUsize,
     data: T,

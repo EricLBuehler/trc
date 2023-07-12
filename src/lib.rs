@@ -1,5 +1,3 @@
-//! If you find any issues with `Trc`, I would greatly appreciate you submitting a pull request or issue to the [GitHub page](https://github.com/EricLBuehler/trc).
-//!
 //! `Trc` is a performant heap-allocated smart pointer for Rust that implements a thread reference counting.
 //! `Trc` stands for: Thread Reference Counted.
 //! [`Trc`] provides shared ownership of the data similar to `Arc<T>` and `Rc<T>`.
