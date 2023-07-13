@@ -152,6 +152,49 @@ pub struct SharedTrc<T: ?Sized> {
     data: NonNull<SharedTrcInternal<T>>,
 }
 
+/// `Weak<T>` is a non-owning reference to `Trc<T>`'s data. It is used to prevent cyclic references which cause memory to never be freed.
+/// `Weak<T>` does not keep the value alive (which can be dropped), they only keep the backing allocation alive. `Weak<T>` cannot even directly access the memory,
+/// and must be converted into `Trc<T>` to do so.
+///
+/// One use case of a `Weak<T>`
+/// is to create a tree: The parent nodes own the child nodes, and have strong `Trc<T>` references to their children. However, their children have `Weak<T>` references
+/// to their parents.
+///
+/// To prevent name clashes, `Weak<T>`'s functions are associated.
+///
+/// ## Examples
+///
+/// Example in a single thread:
+/// ```
+/// use trc::Trc;
+/// use trc::Weak;
+///
+/// let trc = Trc::new(100);
+/// let weak = Trc::downgrade(&trc);
+/// let new_trc = Weak::upgrade(&weak).unwrap();
+/// assert_eq!(*new_trc, 100);
+/// ```
+///
+/// Example with multiple threads:
+/// ```
+/// use std::thread;
+/// use trc::Trc;
+/// use trc::SharedTrc;
+///
+/// let trc = Trc::new(100);
+/// let shared = SharedTrc::from_trc(&trc);
+/// let handle = thread::spawn(move || {
+///     let mut trc = SharedTrc::to_trc(shared);
+///     assert_eq!(*trc, 100);
+/// });
+/// handle.join().unwrap();
+/// assert_eq!(*trc, 100);
+/// ```
+///
+pub struct Weak<T: ?Sized> {
+    data: NonNull<SharedTrcInternal<T>>,
+}
+
 unsafe impl<T: Sync + Send> Send for SharedTrc<T> {}
 unsafe impl<T: Sync + Send> Sync for SharedTrc<T> {}
 
@@ -691,12 +734,12 @@ impl<T: Error> Error for SharedTrc<T> {
 impl<T: ?Sized> Unpin for SharedTrc<T> {}
 impl<T: ?Sized> UnwindSafe for SharedTrc<T> {}
 
-#[inline]
+#[inline(always)]
 fn sum_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::Ordering) -> usize {
     value.fetch_add(offset, ordering)
 }
 
-#[inline]
+#[inline(always)]
 fn sub_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::Ordering) -> usize {
     value.fetch_sub(offset, ordering)
 }
@@ -1611,6 +1654,7 @@ impl<T: Clone + ?Sized> TrcFromIter<T> for Trc<[T]> {
         }
     }
 }
+
 impl<T: Clone + ?Sized> From<&[T]> for Trc<[T]> {
     /// From conversion from a reference to a slice of type `T` (`&[T]`) to a `Trc<[T]>`.
     ///
@@ -1647,49 +1691,6 @@ impl<T: Clone + ?Sized> FromIterator<T> for Trc<[T]> {
 //TODO: Integration with standard library for both, or use lib & conditional for just CoerceUnsized
 //impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Trc<U>> for Trc<T> {}
 //impl<T: ?Sized> std::ops::Receiver for Trc<T> {}
-
-/// `Weak<T>` is a non-owning reference to `Trc<T>`'s data. It is used to prevent cyclic references which cause memory to never be freed.
-/// `Weak<T>` does not keep the value alive (which can be dropped), they only keep the backing allocation alive. `Weak<T>` cannot even directly access the memory,
-/// and must be converted into `Trc<T>` to do so.
-///
-/// One use case of a `Weak<T>`
-/// is to create a tree: The parent nodes own the child nodes, and have strong `Trc<T>` references to their children. However, their children have `Weak<T>` references
-/// to their parents.
-///
-/// To prevent name clashes, `Weak<T>`'s functions are associated.
-///
-/// ## Examples
-///
-/// Example in a single thread:
-/// ```
-/// use trc::Trc;
-/// use trc::Weak;
-///
-/// let trc = Trc::new(100);
-/// let weak = Trc::downgrade(&trc);
-/// let new_trc = Weak::upgrade(&weak).unwrap();
-/// assert_eq!(*new_trc, 100);
-/// ```
-///
-/// Example with multiple threads:
-/// ```
-/// use std::thread;
-/// use trc::Trc;
-/// use trc::SharedTrc;
-///
-/// let trc = Trc::new(100);
-/// let shared = SharedTrc::from_trc(&trc);
-/// let handle = thread::spawn(move || {
-///     let mut trc = SharedTrc::to_trc(shared);
-///     assert_eq!(*trc, 100);
-/// });
-/// handle.join().unwrap();
-/// assert_eq!(*trc, 100);
-/// ```
-///
-pub struct Weak<T: ?Sized> {
-    data: NonNull<SharedTrcInternal<T>>, //Use this data because it has the ptr
-}
 
 impl<T: ?Sized> Drop for Weak<T> {
     #[inline]
