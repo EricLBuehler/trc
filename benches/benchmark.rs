@@ -43,17 +43,17 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
 fn clone_trc() {
     let trc = Trc::new(100);
-    let _ = black_box(trc.clone());
+    let _ = black_box(Trc::clone(&trc));
 }
 
 fn clone_arc() {
     let arc = Arc::new(100);
-    let _ = black_box(arc.clone());
+    let _ = black_box(Arc::clone(&arc));
 }
 
 fn clone_rc() {
     let rc = Rc::new(100);
-    let _ = black_box(rc.clone());
+    let _ = black_box(Rc::clone(&rc));
 }
 
 fn multi_clone_trc() {
