@@ -527,6 +527,12 @@ impl<T: ?Sized> Borrow<T> for SharedTrc<T> {
     }
 }
 
+impl<T: ?Sized + Default> Default for SharedTrc<T> {
+    fn default() -> Self {
+        Self::from_trc(&Trc::new(Default::default()))
+    }
+}
+
 impl<T: Display> Display for SharedTrc<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         core::fmt::Display::fmt((*self).deref(), f)
@@ -1397,7 +1403,7 @@ impl<T: ?Sized> Borrow<T> for Trc<T> {
     }
 }
 
-impl<T: Default> Default for Trc<T> {
+impl<T: ?Sized + Default> Default for Trc<T> {
     fn default() -> Self {
         Trc::new(Default::default())
     }
