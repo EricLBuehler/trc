@@ -202,3 +202,22 @@ fn test_rc_issue_uninit() {
     let p = Trc::<[u8]>::new_uninit_slice(2_usize.pow(16));
     let _ = p.last();
 }
+
+#[test]
+fn test_dyn2() {
+    trait Vehicle {
+        fn drive(&self);
+    }
+
+    struct Truck;
+
+    impl Vehicle for Truck {
+        fn drive(&self) {
+            println!("Truck is driving");
+        }
+    }
+
+
+    let vehicle = Trc::new(Truck);
+    <Truck as Vehicle>::drive(&*vehicle);
+}
