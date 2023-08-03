@@ -232,3 +232,81 @@ MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 | Arc | 590.530ms |
 
 ![Trc vs Arc performance (Debian aarch64)](./figures/debian_aarch64.png)
+
+
+## MacOS 13.4.1 + Apple M1 Max (aarch64)
+
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+git clone https://github.com/EricLBuehler/trc.git
+cd trc
+sudo apt install git
+sudo apt install build-essential
+# Benchmarks
+cargo install cargo-criterion
+cargo criterion
+# Tests
+rustup +nightly component add miri
+cargo +nightly miri test
+MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test
+MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test
+MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
+```
+
+<span style="color:green">**All tests passed.**</span>
+
+
+### Clone
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 29.750ns |
+| Arc | 20.221ns |
+| Rc | 16.191ns |
+
+### Multiple Clone (100 times)
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 440.81ns |
+| Arc | 969.18ns |
+| Rc | 409.55ns |
+
+### Deref
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 16.279ns |
+| Arc | 16.620ns |
+| Rc | 15.590ns |
+
+### Multiple Deref (100 times)
+| Type | Mean time |
+| --- | ----------- |
+| Trc | 49.710ns |
+| Arc | 49.918ns |
+| Rc | 46.284ns |
+
+### Multiple Threads Drop and Clone (1000 times)
+| Type | Mean time |
+| --- |-----------|
+| Trc | 1.688ms   |
+| Arc | 2.668ms   |
+
+### Multiple Threads Drop and Clone (5000 times)
+| Type | Mean time |
+| --- |-----------|
+| Trc | 1.968ms   |
+| Arc | 6.488ms   |
+
+### Multiple Threads Drop and Clone (100000 times)
+| Type | Mean time |
+| --- | ---------- |
+| Trc | 8.095ms |
+| Arc | 97.976ms |
+
+### Multiple Threads Drop and Clone (500000 times)
+| Type | Mean time |
+| --- |----------|
+| Trc | 34.526ms |
+| Arc | 477.230ms |
+
+![Trc vs Arc performance (Debian aarch64)](./figures/debian_aarch64.png)
