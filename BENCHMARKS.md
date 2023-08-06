@@ -309,4 +309,4 @@ MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test
 | Trc | 34.526ms |
 | Arc | 477.230ms |
 
-![Trc vs Arc performance (Debian aarch64)](./figures/debian_aarch64.png)
+![Trc vs Arc performance (apple darwin aarch64)](./figures/apple_darwin_aarch64.png)
