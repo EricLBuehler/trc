@@ -1849,7 +1849,7 @@ impl<T> Weak<T> {
         }
     }
 
-    /// Create a new, uninitialzed Weak<T>. Calling `Weak::upgrade` on this will always return `None.
+    /// Create a new, uninitialized Weak<T>. Calling `Weak::upgrade` on this will always return `None.
     ///
     /// # Examples
     /// ```
