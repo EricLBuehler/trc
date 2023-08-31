@@ -1861,7 +1861,7 @@ impl<T> Weak<T> {
     /// assert!(Weak::upgrade(&weak).is_none());
     /// ```
     pub fn new() -> Weak<MaybeUninit<T>> {
-        let data =  MaybeUninit::<T>::uninit();
+        let data = MaybeUninit::<T>::uninit();
 
         let shareddata = SharedTrcInternal {
             atomicref: AtomicUsize::new(0),
@@ -1871,7 +1871,9 @@ impl<T> Weak<T> {
 
         let sbx = Box::new(shareddata);
 
-        Weak { data: NonNull::from(Box::leak(sbx)) }
+        Weak {
+            data: NonNull::from(Box::leak(sbx)),
+        }
     }
 }
 

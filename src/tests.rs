@@ -1,4 +1,4 @@
-use std::{thread, mem::MaybeUninit};
+use std::{mem::MaybeUninit, thread};
 
 use crate::{SharedTrc, Trc, Weak};
 
