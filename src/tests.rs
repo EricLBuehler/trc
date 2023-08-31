@@ -224,5 +224,7 @@ fn test_dyn2() {
 #[test]
 fn test_ub_weak_as_ptr() {
     //https://github.com/rust-lang/rust/issues/80365
-    println!("{:?}", Weak::into_raw(Weak::<MaybeUninit<usize>>::new()));
+    let ptr = Weak::into_raw(Weak::<MaybeUninit<usize>>::new());
+    println!("{:?}", ptr);
+    unsafe { Weak::from_raw(ptr) };
 }

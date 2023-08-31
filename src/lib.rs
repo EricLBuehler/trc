@@ -1865,7 +1865,7 @@ impl<T> Weak<T> {
 
         let shareddata = SharedTrcInternal {
             atomicref: AtomicUsize::new(0),
-            weakcount: AtomicUsize::new(0),
+            weakcount: AtomicUsize::new(1),
             data,
         };
 
