@@ -481,6 +481,21 @@ impl<T> SharedTrc<T> {
     /// assert_eq!(unsafe { *ptr }, 100);
     ///
     /// unsafe { Trc::from_raw(ptr) };
+    ///
+    /// let strong = Trc::new("hello".to_owned());
+    ///
+    /// let raw_1 = SharedTrc::into_raw(SharedTrc::from_trc(&strong));
+    /// let raw_2 = SharedTrc::into_raw(SharedTrc::from_trc(&strong));
+    ///
+    /// assert_eq!(3, Trc::atomic_count(&strong));
+    ///
+    /// assert_eq!("hello", &*SharedTrc::to_trc(unsafe { SharedTrc::from_raw(raw_1) }));
+    /// assert_eq!(2, Trc::atomic_count(&strong));
+    ///
+    /// drop(strong);
+    ///
+    /// // Decrement the last atomic count.
+    /// SharedTrc::to_trc(unsafe { SharedTrc::from_raw(raw_2) });
     /// ```
     pub unsafe fn from_raw(ptr: *const T) -> Self {
         let layout = Layout::new::<SharedTrcInternal<()>>();
