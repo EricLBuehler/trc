@@ -1,4 +1,4 @@
-use std::thread;
+use std::{thread, mem::MaybeUninit};
 
 use crate::{SharedTrc, Trc, Weak};
 
@@ -217,7 +217,12 @@ fn test_dyn2() {
         }
     }
 
-
     let vehicle = Trc::new(Truck);
     <Truck as Vehicle>::drive(&*vehicle);
+}
+
+#[test]
+fn test_ub_weak_as_ptr() {
+    //https://github.com/rust-lang/rust/issues/80365
+    println!("{:?}", Weak::into_raw(Weak::<MaybeUninit<usize>>::new()));
 }

@@ -35,7 +35,7 @@ use std::{
     os::fd::{AsFd, AsRawFd},
     panic::UnwindSafe,
     pin::Pin,
-    ptr::{self, addr_of, addr_of_mut, slice_from_raw_parts_mut, write, NonNull}
+    ptr::{self, addr_of, addr_of_mut, slice_from_raw_parts_mut, write, NonNull},
 };
 
 use core::sync::atomic::AtomicUsize;
@@ -1189,7 +1189,7 @@ impl<T: ?Sized> Trc<T> {
         this.shared.as_ptr() == other.shared.as_ptr()
     }
 
-    /// Gets the raw pointer to the most inner layer of `Trc<T>`.
+    /// Gets the raw pointer to the most inner layer of `Trc<T>`. This is only valid if there is are at least some strong references.
     ///
     /// # Examples
     /// ```
@@ -1698,8 +1698,6 @@ impl<T: Clone + ?Sized> FromIterator<T> for Trc<[T]> {
 //impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Trc<U>> for Trc<T> {}
 //impl<T: ?Sized> std::ops::Receiver for Trc<T> {}
 
-
-
 impl<T: ?Sized> Drop for Weak<T> {
     #[inline]
     fn drop(&mut self) {
@@ -1762,6 +1760,118 @@ impl<T: ?Sized> Weak<T> {
                     shared: this.data,
                 }
             })
+    }
+
+    /// Gets the raw pointer to the most inner layer of `Weak<T>`. This is only valid if there is are at least some strong references.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    ///
+    /// let trc = Trc::new(100);
+    /// let weak = Trc::downgrade(&trc);
+    /// println!("{}", Trc::as_ptr(&trc) as usize)
+    /// ```
+    #[inline]
+    pub fn as_ptr(this: &Self) -> *const T {
+        let sharedptr = NonNull::as_ptr(this.data);
+        unsafe { addr_of_mut!((*sharedptr).data) }
+    }
+
+    /// Converts a `Weak<T>` into `*const T`, without freeing the allocation.
+    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    ///
+    /// let trc = Trc::new(100);
+    /// let weak = Trc::downgrade(&trc);
+    /// let ptr = Trc::into_raw(trc);
+    ///
+    /// assert_eq!(unsafe { *ptr }, 100);
+    ///
+    /// unsafe { Weak::from_raw(ptr) };
+    /// ```
+    pub fn into_raw(this: Self) -> *const T {
+        let ptr = Self::as_ptr(&this);
+
+        forget(this);
+        ptr
+    }
+}
+
+impl<T> Weak<T> {
+    /// Converts a `*const T` into `Weak<T>`. The caller must uphold the below safety constraints.
+    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
+    ///
+    /// # Safety
+    /// - The given pointer must be a valid pointer to `T` that came from `into_raw`.
+    /// - After `from_raw`, the pointer must not be accessed.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    ///
+    /// let weak = Trc::downgrade(&Trc::new(100));
+    /// let ptr = Weak::into_raw(weak);
+    ///
+    /// assert_eq!(unsafe { *ptr }, 100);
+    ///
+    /// unsafe { Weak::from_raw(ptr) };
+    ///
+    /// let strong = Trc::new("hello".to_owned());
+    ///
+    /// let raw_1 = Weak::into_raw(Trc::downgrade(&strong));
+    /// let raw_2 = Weak::into_raw(Trc::downgrade(&strong));
+    ///
+    /// assert_eq!(3, Trc::weak_count(&strong));
+    ///
+    /// assert_eq!("hello", &*Weak::upgrade(unsafe { &Weak::from_raw(raw_1) }).unwrap());
+    /// assert_eq!(2, Trc::weak_count(&strong));
+    ///
+    /// drop(strong);
+    ///
+    /// // Decrement the last weak count.
+    /// assert!( Weak::upgrade(unsafe {& Weak::from_raw(raw_2) }).is_none());
+    /// ```
+    pub unsafe fn from_raw(ptr: *const T) -> Self {
+        let layout = Layout::new::<SharedTrcInternal<()>>();
+        let n = layout.size();
+
+        let data_ptr = (ptr as *const u8).sub(n) as *mut SharedTrcInternal<T>;
+
+        Weak {
+            data: NonNull::new_unchecked(data_ptr),
+        }
+    }
+
+    /// Create a new, uninitialzed Weak<T>. Calling `Weak::upgrade` on this will always return `None.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Weak;
+    /// use core::mem::MaybeUninit;
+    ///
+    /// let weak: Weak<MaybeUninit<i32>> = Weak::new();
+    ///
+    /// assert!(Weak::upgrade(&weak).is_none());
+    /// ```
+    pub fn new() -> Weak<MaybeUninit<T>> {
+        let data =  MaybeUninit::<T>::uninit();
+
+        let shareddata = SharedTrcInternal {
+            atomicref: AtomicUsize::new(0),
+            weakcount: AtomicUsize::new(0),
+            data,
+        };
+
+        let sbx = Box::new(shareddata);
+
+        Weak { data: NonNull::from(Box::leak(sbx)) }
     }
 }
 
