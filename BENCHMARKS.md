@@ -4,6 +4,7 @@ Test platforms:
 - WSL2 5.15.90 + Intel Xeon E3-1535M (x86_64)
 - Ubuntu 20.04 + Intel Xeon Platinum 8358 (x86_64)
 - Debian 6.1.20 + ARM Neoverse-N1 (aarch64)
+- MacOS 13.4.1 + Apple M1 Max (aarch64)
 
 ## WSL2 (Ubuntu 22.04) 5.15.90 + Intel Xeon E3-1535M (x86_64)
 
