@@ -22,134 +22,13 @@ safely send a `Trc<T>` across threads. See `SharedTrc` for it's API, which is si
 Because `Trc` is not part of the standard library, the `CoerceUnsized` and `Receiver` traits cannot currently be implemented by default. However, `Trc` provides `dyn_unstable` trait which enables the above traits for `Trc` and `SharedTrc` and must be used with nightly Rust (`cargo +nightly ...`).
 
 ## Examples
+See examples [here](EXAMPLES.md)
 
-Example of `Trc<T>` in a single thread:
-```rust
-use trc::Trc;
-
-let mut trc = Trc::new(100);
-assert_eq!(*trc, 100);
-*Trc::get_mut(&mut trc).unwrap() = 200;
-assert_eq!(*trc, 200);
-```
-
-Example of `Trc<T>` with multiple threads:
-```rust
-use std::thread;
-use trc::Trc;
-use trc::SharedTrc;
-
-let trc = Trc::new(100);
-let shared = SharedTrc::from_trc(&trc);
-let handle = thread::spawn(move || {
-    let trc = SharedTrc::to_trc(shared);
-    assert_eq!(*trc, 100);
-});
-
-handle.join().unwrap();
-assert_eq!(*trc, 100);
-```
-
-Example of `Weak<T>` in a single thread:
-```rust
-use trc::Trc;
-use trc::Weak;
-
-let trc = Trc::new(100);
-let weak = Trc::downgrade(&trc);
-let mut new_trc = Weak::upgrade(&weak).unwrap();
-assert_eq!(*new_trc, 100);
-drop(trc);
-drop(weak);
-*Trc::get_mut(&mut new_trc).unwrap() = 200;
-assert_eq!(*new_trc, 200);
-```
-
-Example of `Weak<T>` with multiple threads:
-```rust
-use std::thread;
-use trc::Trc;
-use trc::Weak;
-
-let trc = Trc::new(100);
-let weak = Trc::downgrade(&trc);
-
-let handle = thread::spawn(move || {
-    let trc = Weak::upgrade(&weak).unwrap();
-    assert_eq!(*trc, 100);
-});
-handle.join().unwrap();
-assert_eq!(*trc, 100);
-```
-
-## Benchmarks
-Benchmarks via Criterion. As can be seen, `Trc`'s performance really shines when there are many Clones.
-The reason `Trc` does not do as well for fewer operations is that it needs to allocate `n+1` blocks of memory for `n` threads, and
-so for 1 thread, there are 2 allocations. However, after the initial allocations, `Trc` performs very well - 3.81x `Arc`'s time for Clones. 
+## Benchmarks 
 
 Click [here](BENCHMARKS.md) for more benchmarks. Multiple different operating systems, CPUs, and architectures are tested. 
-
-### Clone   
-| Type | Mean time |
-| --- | ----------- |
-| Trc | 26.913ns |
-| Arc | 33.803ns |
-| Rc | 11.228ns |
-
-### Multiple Clone (100 times)
-| Type | Mean time |
-| --- | ----------- |
-| Trc | 423.020ns |
-| Arc | 1273.200ns |
-| Rc | 352.920ns |
-
-### Deref
-| Type | Mean time |
-| --- | ----------- |
-| Trc | 20.802ns |
-| Arc | 20.802ns |
-| Rc | 9.264ns |
-
-### Multiple Deref (100 times)
-| Type | Mean time |
-| --- | ----------- |
-| Trc | 35.577ns |
-| Arc | 35.853ns |
-| Rc | 29.454ns |
-
-### Multiple Threads Drop and Clone (1000 times)
-| Type | Mean time |
-| --- | ----------- |
-| Trc | 2.80ms |
-| Arc | 4.02ms |
-
-1.44x faster - because of the allocation cost of `SharedTrc`.
-
-### Multiple Threads Drop and Clone (5000 times)
-| Type | Mean time |
-| --- | ----------- |
-| Trc | 3.480ms |
-| Arc | 9.415ms |
-
-2.71x faster - the allocation cost of `SharedTrc` begins to become replaced by the `Clone` efficiency.
-
-### Multiple Threads Drop and Clone (100000 times)
-| Type | Mean time |
-| --- | ----------- |
-| Trc | 18.451ms |
-| Arc | 137.980ms |
-
-7.44x faster - the allocation cost of `SharedTrc` is now negligible and the `Clone` advantage is beginning to be demonstrated.
-
-### Multiple Threads Drop and Clone (500000 times)
-| Type | Mean time |
-| --- | ----------- |
-| Trc | 71.490ms |
-| Arc | 638.180ms |
-
-8.92x faster - the allocation cost of `SharedTrc` is now negligible and the `Clone` advantage is demonstrated.
 
 ![Trc vs Arc performance](./figures/performance.png)
 
 ## Use
-To use `Trc`, simply run `cargo add trc`, or add `trc = "1.2.1"`. Optionally, you can always use the latest version by adding `trc = {git = "https://github.com/EricLBuehler/trc.git"}`.
+To use `Trc`, simply run `cargo add trc`, or add `trc = "1.2.2"`. Optionally, you can always use the latest version by adding `trc = {git = "https://github.com/EricLBuehler/trc.git"}`.
