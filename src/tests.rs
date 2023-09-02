@@ -197,7 +197,7 @@ fn readme_multi_weak() {
 
 #[test]
 fn test_rc_issue_uninit() {
-    //https://github.com/rust-lang/rust/issues/95334
+    //rust-lang/rust#95334
     //Cannot use isize::MAX on my 64-bit system
     let p = Trc::<[u8]>::new_uninit_slice(2_usize.pow(16));
     let _ = p.last();
@@ -223,7 +223,7 @@ fn test_dyn2() {
 
 #[test]
 fn test_ub_weak_as_ptr() {
-    //https://github.com/rust-lang/rust/issues/80365
+    //rust-lang/rust#80365
     let ptr = Weak::into_raw(Weak::<MaybeUninit<usize>>::new());
     println!("{:?}", ptr);
     unsafe { Weak::from_raw(ptr) };
