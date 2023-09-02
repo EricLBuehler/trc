@@ -28,6 +28,7 @@
 #![cfg_attr(feature = "dyn_unstable", feature(receiver_trait))]
 #![cfg_attr(feature = "dyn_unstable", feature(dispatch_from_dyn))]
 
+#[deny(clippy::all)]
 #[cfg(test)]
 mod tests;
 
@@ -68,9 +69,9 @@ struct SharedTrcInternal<T: ?Sized> {
 ///
 /// ## Construction behavior
 /// A `Trc` can be constructed via several methods, and even from a `SharedTrc` or `Weak`. When a `Trc` is created, memory is allocated
-/// and the atomic reference and weak reference counts are both set to 1 (with the exception of `Weak::upgrade`). All `Trc`s together 
+/// and the atomic reference and weak reference counts are both set to 1 (with the exception of `Weak::upgrade`). All `Trc`s together
 /// have an implicit weak reference to themselves, and thus the weak reference count is always at least 1.
-/// 
+///
 /// ## Clone behavior
 /// When a `Trc` is cloned, it's internal (wrapped) data is not cloned. Instead, a new `Trc` that point to the data is constructed and returned.
 /// This makes a `clone` a relatively inexpensive operation because only a wrapper is constructed.
@@ -129,10 +130,10 @@ pub struct Trc<T: ?Sized> {
 /// [`Weak`], `SharedTrc` is one of the ways to send a `Trc` across threads. However, unlike `Weak`, `SharedTrc` does not
 /// modify the weak count - and only modifies the strong count. In addition, `SharedTrc` will not fail on conversion
 /// back to a `Trc` because it prevents the data `T` from being dropped.
-/// 
+///
 /// ## Construction behavior
 /// A `SharedTrc` can be constructed explicitly using methods or using the `Into` trait. When a `SharedTrc` is constructed,
-/// no memory is allocated. However, the atomic reference count is incremented, has a small overhead. All `SharedTrc`s together 
+/// no memory is allocated. However, the atomic reference count is incremented, has a small overhead. All `SharedTrc`s together
 /// have an implicit weak reference to themselves, and thus the weak reference count is always at least 1.
 ///
 /// ## Clone behavior
@@ -148,12 +149,12 @@ pub struct Trc<T: ?Sized> {
 /// For ease of developer use, `SharedTrc` implements [`Deref`].
 /// `SharedTrc` automatically dereferences to `&T`. This allows method calls and member access of `T`.
 /// To prevent name clashes, `SharedTrc<T>`'s methods are associated.
-/// 
+///
 /// ## Trait object behavior and limitations
 /// Because `SharedTrc` is not in the standard library, it cannot implement the `CoerceUnsized`, `DispatchFromDyn` or `Receiever` traits by default in stable Rust.
 /// However, `Trc` has a feature `dyn_unstable` that enables these features to be implemented for `SharedTrc` and allow coercion to trait objects
 /// (`SharedTrc<dyn T>`) as well as acting as a method receiver (`fn _(&self)`) and allowing trait-object safety with arbitrary self types (`fn _(self: Trc<Self>)`).
-/// 
+///
 /// ## Examples
 ///
 /// Example in a single thread:
@@ -188,9 +189,9 @@ pub struct SharedTrc<T: ?Sized> {
 /// ## Drop behavior
 /// When a `Weak` is dropped the weak reference count is decremented.
 /// If the atomic reference count and weak reference count are both zero, only then the memory freed.
-/// 
-/// One use case of a `Weak` is to create a tree: 
-/// The parent nodes own the child nodes, and have strong `Trc` references to their children. 
+///
+/// One use case of a `Weak` is to create a tree:
+/// The parent nodes own the child nodes, and have strong `Trc` references to their children.
 /// However, their children have `Weak` references to their parents.
 ///
 /// To prevent name clashes, `Weak<T>`'s functions are associated.

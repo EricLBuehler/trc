@@ -363,10 +363,10 @@ fn test_ex3() {
 #[test]
 fn test_ex4() {
     use std::thread;
-    
+
     let trc = Trc::new(100);
     let weak = Trc::downgrade(&trc);
-    
+
     let handle = thread::spawn(move || {
         let trc = weak.upgrade().unwrap();
         assert_eq!(*trc, 100);
