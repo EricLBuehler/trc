@@ -244,7 +244,7 @@ fn test_coerce_unsized() {
         }
     }
 
-    let vehicle: Trc<dyn Vehicle> = Trc::new(Truck);
+    let _vehicle: Trc<dyn Vehicle> = Trc::new(Truck);
 }
 
 #[cfg(feature = "dyn_unstable")]
@@ -282,10 +282,10 @@ fn test_coerce_unsized_sharedtrc() {
     }
 
     let shared: SharedTrc<Truck> = Trc::new(Truck).into();
-    let vehicle: SharedTrc<dyn Vehicle> = shared;
+    let _vehicle: SharedTrc<dyn Vehicle> = shared;
 }
 
-#[cfg(feaure = "dyn_unstable")]
+#[cfg(feature = "dyn_unstable")]
 #[test]
 fn test_receiver_sharedtrc() {
     trait Vehicle {
@@ -296,6 +296,27 @@ fn test_receiver_sharedtrc() {
 
     impl Vehicle for Truck {
         fn drive(&self) {
+            println!("Truck is driving");
+        }
+    }
+
+    let shared: SharedTrc<Truck> = Trc::new(Truck).into();
+    let vehicle: SharedTrc<dyn Vehicle> = shared;
+    vehicle.drive();
+}
+
+
+#[cfg(feature = "dyn_unstable")]
+#[test]
+fn test_dispatchfromdyn_sharedtrc() {
+    trait Vehicle {
+        fn drive(self: SharedTrc<Self>);
+    }
+
+    struct Truck;
+
+    impl Vehicle for Truck {
+        fn drive(self: SharedTrc<Self>) {
             println!("Truck is driving");
         }
     }

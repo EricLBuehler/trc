@@ -17,10 +17,16 @@
 //! However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across
 //! threads. See [`SharedTrc`] for it's API, which is similar to that of `Weak`.
 //! See [`SharedTrc`] for it's API, which is similar to that of [`Weak`].
+//! 
+//! Because `Trc` is not part of the standard library,
+//! the `CoerceUnsized` and `Receiver` traits cannot currently be implemented by default.
+//! However, `Trc` provides `dyn_unstable` trait which enables the above traits for
+//! `Trc` and `SharedTrc` and must be used with nightly Rust (`cargo +nightly ...`).
 
 #![cfg_attr(feature = "dyn_unstable", feature(unsize))]
 #![cfg_attr(feature = "dyn_unstable", feature(coerce_unsized))]
 #![cfg_attr(feature = "dyn_unstable", feature(receiver_trait))]
+#![cfg_attr(feature = "dyn_unstable", feature(dispatch_from_dyn))]
 
 #[cfg(test)]
 mod tests;
@@ -93,11 +99,11 @@ struct SharedTrcInternal<T: ?Sized> {
 /// `DerefMut` is not directly implemented as that could cause UB due to the possibility of multiple `&mut` references to the `Trc`.
 /// To prevent name clashes, `Trc<T>`'s functions are associated.
 ///
-/// ## Footnote on `dyn` wrapping
-/// Rust's limitations mean that `Trc` will not be able to be used as a method receiver wrapper until
-/// CoerceUnsized, and Receiver (with arbitrary_self_types) are stablized. However, DispatchFromDyn cannot be implemented due
-/// to the requirements of thread reference counting, and so `Trc` will not be able to be used as a trait object method receiver.
-/// As an alternative, one can use a [`Box`] as a wrapper and then wrap with `Trc<T>`.
+/// ## Trait object behavior and limitations
+/// Because `Trc` is not in the standard library, it cannot implement the `CoerceUnsized` or `Receiever` traits by default in stable Rust.
+/// However, `Trc` has a feature `dyn_unstable` that enables these features to be implemented for `Trc` and allow coercion to trait objects
+/// (`Trc<dyn T>`) as well as acting as a method reciever (`fn _(&self)`). Unfortunately, because of the internal design of `Trc`, `DispatchFromDyn`
+/// cannot be implemented (so `fn _(self: Trc<Self>)` cannot be implemented). However, [`SharedTrc`] does implement `DispathFromDyn`.
 ///
 /// ## Examples
 ///
@@ -137,6 +143,11 @@ pub struct Trc<T: ?Sized> {
 /// [`Weak`], `SharedTrc` is one of the ways to send a `Trc` across threads. However, unlike `Weak`, `SharedTrc` does not
 /// modify the weak count - and only modifies the strong count. In addition, `SharedTrc` will not fail on conversion
 /// back to a `Trc` because it prevents the data `T` from being dropped.
+///
+/// ## Trait object behavior and limitations
+/// Because `SharedTrc` is not in the standard library, it cannot implement the `CoerceUnsized`, `DispathFromDyn` or `Receiever` traits by default in stable Rust.
+/// However, `Trc` has a feature `dyn_unstable` that enables these features to be implemented for `SharedTrc` and allow coercion to trait objects
+/// (`SharedTrc<dyn T>`) as well as acting as a method reciever (`fn _(&self)`) and allowing trait-object safety with arbitrary self types (`fn _(self: Trc<Self>)`).
 ///
 /// ## Examples
 ///
@@ -1729,6 +1740,12 @@ impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Shar
 
 #[cfg(feature = "dyn_unstable")]
 impl<T: ?Sized> std::ops::Receiver for SharedTrc<T> {}
+
+#[cfg(feature = "dyn_unstable")]
+impl<T: ?Sized, U: ?Sized> core::ops::DispatchFromDyn<SharedTrc<U>> for SharedTrc<T>
+where
+    T: std::marker::Unsize<U>,
+{}
 //Because SharedTrc is !DispatchFromDyn, fn _(self: SharedTrc<Self>) cannot be implemented.
 
 impl<T: ?Sized> Drop for Weak<T> {
@@ -1882,7 +1899,7 @@ impl<T> Weak<T> {
         }
     }
 
-    /// Create a new, uninitialized Weak<T>. Calling `Weak::upgrade` on this will always return `None.
+    /// Create a new, uninitialized `Weak<T>`. Calling `Weak::upgrade` on this will always return `None.
     ///
     /// # Examples
     /// ```

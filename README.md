@@ -20,6 +20,7 @@ must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (w
 To soundly implement thread safety `Trc<T>` does not itself implement `Send` or `Sync`. However, `SharedTrc<T>` does, and it is the only way to 
 safely send a `Trc<T>` across threads. See `SharedTrc` for it's API, which is similar to that of `Weak`.
 
+Because `Trc` is not part of the standard library, the `CoerceUnsized` and `Receiver` traits cannot currently be implemented by default. However, `Trc` provides `dyn_unstable` trait which enables the above traits for `Trc` and `SharedTrc` and must be used with nightly Rust (`cargo +nightly ...`).
 
 ## Examples
 
