@@ -22,7 +22,7 @@ safely send a `Trc<T>` across threads. See `SharedTrc` for it's API, which is si
 Because `Trc` is not part of the standard library, the `CoerceUnsized` and `Receiver` traits cannot currently be implemented by default. However, `Trc` provides `dyn_unstable` trait which enables the above traits for `Trc` and `SharedTrc` and must be used with nightly Rust (`cargo +nightly ...`).
 
 ## Examples
-See examples [here](EXAMPLES.md)
+See examples [here](EXAMPLES.md).
 
 ## Benchmarks 
 
