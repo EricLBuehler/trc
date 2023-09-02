@@ -17,8 +17,8 @@ jobs:
     - uses: actions/checkout@v3
     - name: Test default
       run: cargo test
-    - name: Test dyn_unstable
-      run: cargo =nightly test --features dyn_unstable
+    - name: Test default (dyn_unstable)
+      run: cargo +nightly test --features dyn_unstable
 
   miri:
     runs-on: ubuntu-latest
@@ -38,11 +38,11 @@ jobs:
       
     - name: Test with Miri (dyn_unstable)
       run: cargo +nightly miri test --features dyn_unstable
-    - name: Miri with strict provenance
+    - name: Miri with strict provenance (dyn_unstable)
       run: MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test --features dyn_unstable
-    - name: Miri with symbolic alignment check
+    - name: Miri with symbolic alignment check (dyn_unstable)
       run: MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test --features dyn_unstable
-    - name: Miri with tree borrows
+    - name: Miri with tree borrows (dyn_unstable)
       run: MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test --features dyn_unstable
 
   typos:
