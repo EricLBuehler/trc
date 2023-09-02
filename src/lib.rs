@@ -210,9 +210,6 @@ pub struct Weak<T: ?Sized> {
     data: NonNull<SharedTrcInternal<T>>,
 }
 
-unsafe impl<T: Sync + Send> Send for SharedTrc<T> {}
-unsafe impl<T: Sync + Send> Sync for SharedTrc<T> {}
-
 impl<T: ?Sized> SharedTrc<T> {
     /// Convert a `Trc<T>` to a `SharedTrc<T>`, incrementing it's atomic reference count.
     /// While this `SharedTrc<T>` is alive, the data contained by `Trc<T>` will not be dropped, which is
@@ -1653,6 +1650,12 @@ impl<T: ?Sized> UnwindSafe for Trc<T> {}
 impl<T: ?Sized> Unpin for SharedTrc<T> {}
 impl<T: ?Sized> UnwindSafe for SharedTrc<T> {}
 
+unsafe impl<T: Sync + Send> Send for SharedTrc<T> {}
+unsafe impl<T: Sync + Send> Sync for SharedTrc<T> {}
+
+unsafe impl<T: Sync + Send> Send for Weak<T> {}
+unsafe impl<T: Sync + Send> Sync for Weak<T> {}
+
 fn create_from_iterator_exact<T>(
     iterator: impl Iterator<Item = T> + ExactSizeIterator,
 ) -> *mut SharedTrcInternal<[T]> {
@@ -1985,6 +1988,3 @@ impl<T: ?Sized> Clone for Weak<T> {
         Weak { data: self.data }
     }
 }
-
-unsafe impl<T: Sync + Send> Send for Weak<T> {}
-unsafe impl<T: Sync + Send> Sync for Weak<T> {}
