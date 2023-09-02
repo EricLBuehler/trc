@@ -1743,13 +1743,13 @@ impl<T: ?Sized> Weak<T> {
     ///
     /// let trc = Trc::new(100i32);
     /// let weak = Trc::downgrade(&trc);
-    /// let new_trc = Weak::upgrade(&weak).expect("Value was dropped");
+    /// let new_trc = weak.upgrade().expect("Value was dropped");
     /// drop(weak);
     /// assert_eq!(*new_trc, 100i32);
     /// ```
     #[inline]
-    pub fn upgrade(this: &Self) -> Option<Trc<T>> {
-        unsafe { this.data.as_ref() }
+    pub fn upgrade(&self) -> Option<Trc<T>> {
+        unsafe { self.data.as_ref() }
             .atomicref
             .fetch_update(
                 core::sync::atomic::Ordering::Acquire,
@@ -1772,7 +1772,7 @@ impl<T: ?Sized> Weak<T> {
                 let tbx = Box::new(1);
                 Trc {
                     threadref: NonNull::from(Box::leak(tbx)),
-                    shared: this.data,
+                    shared: self.data,
                 }
             })
     }
