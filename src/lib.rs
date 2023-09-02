@@ -102,8 +102,8 @@ struct SharedTrcInternal<T: ?Sized> {
 /// ## Trait object behavior and limitations
 /// Because `Trc` is not in the standard library, it cannot implement the `CoerceUnsized` or `Receiever` traits by default in stable Rust.
 /// However, `Trc` has a feature `dyn_unstable` that enables these features to be implemented for `Trc` and allow coercion to trait objects
-/// (`Trc<dyn T>`) as well as acting as a method reciever (`fn _(&self)`). Unfortunately, because of the internal design of `Trc`, `DispatchFromDyn`
-/// cannot be implemented (so `fn _(self: Trc<Self>)` cannot be implemented). However, [`SharedTrc`] does implement `DispathFromDyn`.
+/// (`Trc<dyn T>`) as well as acting as a method receiver (`fn _(&self)`). Unfortunately, because of the internal design of `Trc`, `DispatchFromDyn`
+/// cannot be implemented (so `fn _(self: Trc<Self>)` cannot be implemented). However, [`SharedTrc`] does implement `DispatchFromDyn`.
 ///
 /// ## Examples
 ///
@@ -145,9 +145,9 @@ pub struct Trc<T: ?Sized> {
 /// back to a `Trc` because it prevents the data `T` from being dropped.
 ///
 /// ## Trait object behavior and limitations
-/// Because `SharedTrc` is not in the standard library, it cannot implement the `CoerceUnsized`, `DispathFromDyn` or `Receiever` traits by default in stable Rust.
+/// Because `SharedTrc` is not in the standard library, it cannot implement the `CoerceUnsized`, `DispatchFromDyn` or `Receiever` traits by default in stable Rust.
 /// However, `Trc` has a feature `dyn_unstable` that enables these features to be implemented for `SharedTrc` and allow coercion to trait objects
-/// (`SharedTrc<dyn T>`) as well as acting as a method reciever (`fn _(&self)`) and allowing trait-object safety with arbitrary self types (`fn _(self: Trc<Self>)`).
+/// (`SharedTrc<dyn T>`) as well as acting as a method receiver (`fn _(&self)`) and allowing trait-object safety with arbitrary self types (`fn _(self: Trc<Self>)`).
 ///
 /// ## Examples
 ///
