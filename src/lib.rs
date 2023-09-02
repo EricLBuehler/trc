@@ -545,231 +545,6 @@ impl<T: ?Sized> Deref for SharedTrc<T> {
     }
 }
 
-impl<T: ?Sized> AsRef<T> for SharedTrc<T> {
-    fn as_ref(&self) -> &T {
-        SharedTrc::deref(self)
-    }
-}
-
-impl<T: ?Sized> Borrow<T> for SharedTrc<T> {
-    fn borrow(&self) -> &T {
-        self.as_ref()
-    }
-}
-
-impl<T: ?Sized + Default> Default for SharedTrc<T> {
-    fn default() -> Self {
-        Self::from_trc(&Trc::new(Default::default()))
-    }
-}
-
-impl<T: Display> Display for SharedTrc<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Display::fmt((*self).deref(), f)
-    }
-}
-
-impl<T: Debug> Debug for SharedTrc<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Debug::fmt((*self).deref(), f)
-    }
-}
-
-impl<T: ?Sized> Pointer for SharedTrc<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Pointer::fmt(&addr_of!(unsafe { self.data.as_ref() }.data), f)
-    }
-}
-
-impl<T: Hash> Hash for SharedTrc<T> {
-    /// Pass the data contained in this `SharedTrc<T>` to the provided hasher.
-    #[inline]
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.deref().hash(state);
-    }
-}
-
-impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
-    /// "Greater than or equal to" comparison for two `SharedTrc<T>`s.
-    ///
-    /// Calls `.ge` on the data.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    /// use trc::SharedTrc;
-    ///
-    /// let shared1: SharedTrc<_> = Trc::from(100).into();
-    /// let shared2 = shared1.clone();
-    /// assert!(shared1>=shared2);
-    /// ```
-    #[inline]
-    fn ge(&self, other: &Self) -> bool {
-        self.deref().ge(other.deref())
-    }
-
-    /// "Less than or equal to" comparison for two `SharedTrc<T>`s.
-    ///
-    /// Calls `.le` on the data.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    /// use trc::SharedTrc;
-    ///
-    /// let shared1: SharedTrc<_> = Trc::from(100).into();
-    /// let shared2 = shared1.clone();
-    /// assert!(shared1<=shared2);
-    /// ```
-    #[inline]
-    fn le(&self, other: &Self) -> bool {
-        self.deref().ge(other.deref())
-    }
-
-    /// "Greater than" comparison for two `SharedTrc<T>`s.
-    ///
-    /// Calls `.gt` on the data.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    /// use trc::SharedTrc;
-    ///
-    /// let shared1: SharedTrc<_> = Trc::from(200).into();
-    /// let shared2: SharedTrc<_> = Trc::from(100).into();
-    /// assert!(shared1>shared2);
-    /// ```
-    #[inline]
-    fn gt(&self, other: &Self) -> bool {
-        self.deref().gt(other.deref())
-    }
-
-    /// "Less than" comparison for two `SharedTrc<T>`s.
-    ///
-    /// Calls `.lt` on the data.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    /// use trc::SharedTrc;
-    ///
-    /// let shared1: SharedTrc<_> = Trc::from(100).into();
-    /// let shared2: SharedTrc<_> = Trc::from(200).into();
-    /// assert!(shared1<shared2);
-    /// ```
-    #[inline]
-    fn lt(&self, other: &Self) -> bool {
-        self.deref().lt(other.deref())
-    }
-
-    /// Partial comparison for two `SharedTrc<T>`s.
-    ///
-    /// Calls `.partial_cmp` on the data.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    /// use trc::SharedTrc;
-    /// use std::cmp::Ordering;
-    ///
-    /// let shared1: SharedTrc<_> = Trc::from(100).into();
-    /// let shared2: SharedTrc<_> = Trc::from(200).into();
-    /// assert_eq!(Some(Ordering::Less), shared1.partial_cmp(&shared2));
-    /// ```
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        self.deref().partial_cmp(other.deref())
-    }
-}
-
-impl<T: Ord> Ord for SharedTrc<T> {
-    /// Comparison for two `SharedTrc<T>`s. The two are compared by calling `.cmp` on the inner values.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    /// use trc::SharedTrc;
-    /// use std::cmp::Ordering;
-    ///
-    /// let shared1: SharedTrc<_> = Trc::from(100).into();
-    /// let shared2: SharedTrc<_> = Trc::from(200).into();
-    /// assert_eq!(Ordering::Less, shared1.cmp(&shared2));
-    /// ```
-    #[inline]
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.deref().cmp(other.deref())
-    }
-}
-
-impl<T: Eq> Eq for SharedTrc<T> {}
-
-impl<T: PartialEq> PartialEq for SharedTrc<T> {
-    /// Equality by value comparison for two `SharedTrc<T>`s, even if the data is in different allocoations.
-    ///
-    /// Calls `.eq` on the data.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    /// use trc::SharedTrc;
-    ///
-    /// let shared1: SharedTrc<_> = Trc::from(100).into();
-    /// let shared2: SharedTrc<_> = Trc::from(100).into();
-    /// assert!(shared1==shared2);
-    /// ```
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        self.deref().eq(other.deref())
-    }
-
-    /// Inequality by value comparison for two `SharedTrc<T>`s, even if the data is in different allocoations.
-    ///
-    /// Calls `.ne` on the data.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    /// use trc::SharedTrc;
-    ///
-    /// let shared1: SharedTrc<_> = Trc::from(100).into();
-    /// let shared2: SharedTrc<_> = Trc::from(200).into();
-    /// assert!(shared1!=shared2);
-    /// ```
-    #[allow(clippy::partialeq_ne_impl)]
-    #[inline]
-    fn ne(&self, other: &Self) -> bool {
-        self.deref().ne(other.deref())
-    }
-}
-
-impl<T: AsFd> AsFd for SharedTrc<T> {
-    fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
-        (**self).as_fd()
-    }
-}
-
-impl<T: AsRawFd> AsRawFd for SharedTrc<T> {
-    fn as_raw_fd(&self) -> std::os::fd::RawFd {
-        (**self).as_raw_fd()
-    }
-}
-
-#[allow(deprecated)]
-impl<T: Error> Error for SharedTrc<T> {
-    fn cause(&self) -> Option<&dyn Error> {
-        (**self).cause()
-    }
-    fn description(&self) -> &str {
-        (**self).description()
-    }
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        (**self).source()
-    }
-}
-
-impl<T: ?Sized> Unpin for SharedTrc<T> {}
-impl<T: ?Sized> UnwindSafe for SharedTrc<T> {}
-
 #[inline(always)]
 fn sum_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::Ordering) -> usize {
     value.fetch_add(offset, ordering)
@@ -1427,7 +1202,19 @@ impl<T: ?Sized> AsRef<T> for Trc<T> {
     }
 }
 
+impl<T: ?Sized> AsRef<T> for SharedTrc<T> {
+    fn as_ref(&self) -> &T {
+        SharedTrc::deref(self)
+    }
+}
+
 impl<T: ?Sized> Borrow<T> for Trc<T> {
+    fn borrow(&self) -> &T {
+        self.as_ref()
+    }
+}
+
+impl<T: ?Sized> Borrow<T> for SharedTrc<T> {
     fn borrow(&self) -> &T {
         self.as_ref()
     }
@@ -1439,7 +1226,19 @@ impl<T: ?Sized + Default> Default for Trc<T> {
     }
 }
 
+impl<T: ?Sized + Default> Default for SharedTrc<T> {
+    fn default() -> Self {
+        Self::from_trc(&Trc::new(Default::default()))
+    }
+}
+
 impl<T: Display> Display for Trc<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt((*self).deref(), f)
+    }
+}
+
+impl<T: Display> Display for SharedTrc<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         core::fmt::Display::fmt((*self).deref(), f)
     }
@@ -1451,9 +1250,21 @@ impl<T: Debug> Debug for Trc<T> {
     }
 }
 
+impl<T: Debug> Debug for SharedTrc<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Debug::fmt((*self).deref(), f)
+    }
+}
+
 impl<T: ?Sized> Pointer for Trc<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         core::fmt::Pointer::fmt(&addr_of!(unsafe { self.shared.as_ref() }.data), f)
+    }
+}
+
+impl<T: ?Sized> Pointer for SharedTrc<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Pointer::fmt(&addr_of!(unsafe { self.data.as_ref() }.data), f)
     }
 }
 
@@ -1474,6 +1285,14 @@ impl<T> From<T> for Trc<T> {
 
 impl<T: Hash> Hash for Trc<T> {
     /// Pass the data contained in this `Trc<T>` to the provided hasher.
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.deref().hash(state);
+    }
+}
+
+impl<T: Hash> Hash for SharedTrc<T> {
+    /// Pass the data contained in this `SharedTrc<T>` to the provided hasher.
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.deref().hash(state);
@@ -1568,6 +1387,99 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     }
 }
 
+impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
+    /// "Greater than or equal to" comparison for two `SharedTrc<T>`s.
+    ///
+    /// Calls `.ge` on the data.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let shared1: SharedTrc<_> = Trc::from(100).into();
+    /// let shared2 = shared1.clone();
+    /// assert!(shared1>=shared2);
+    /// ```
+    #[inline]
+    fn ge(&self, other: &Self) -> bool {
+        self.deref().ge(other.deref())
+    }
+
+    /// "Less than or equal to" comparison for two `SharedTrc<T>`s.
+    ///
+    /// Calls `.le` on the data.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let shared1: SharedTrc<_> = Trc::from(100).into();
+    /// let shared2 = shared1.clone();
+    /// assert!(shared1<=shared2);
+    /// ```
+    #[inline]
+    fn le(&self, other: &Self) -> bool {
+        self.deref().ge(other.deref())
+    }
+
+    /// "Greater than" comparison for two `SharedTrc<T>`s.
+    ///
+    /// Calls `.gt` on the data.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let shared1: SharedTrc<_> = Trc::from(200).into();
+    /// let shared2: SharedTrc<_> = Trc::from(100).into();
+    /// assert!(shared1>shared2);
+    /// ```
+    #[inline]
+    fn gt(&self, other: &Self) -> bool {
+        self.deref().gt(other.deref())
+    }
+
+    /// "Less than" comparison for two `SharedTrc<T>`s.
+    ///
+    /// Calls `.lt` on the data.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let shared1: SharedTrc<_> = Trc::from(100).into();
+    /// let shared2: SharedTrc<_> = Trc::from(200).into();
+    /// assert!(shared1<shared2);
+    /// ```
+    #[inline]
+    fn lt(&self, other: &Self) -> bool {
+        self.deref().lt(other.deref())
+    }
+
+    /// Partial comparison for two `SharedTrc<T>`s.
+    ///
+    /// Calls `.partial_cmp` on the data.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    /// use std::cmp::Ordering;
+    ///
+    /// let shared1: SharedTrc<_> = Trc::from(100).into();
+    /// let shared2: SharedTrc<_> = Trc::from(200).into();
+    /// assert_eq!(Some(Ordering::Less), shared1.partial_cmp(&shared2));
+    /// ```
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.deref().partial_cmp(other.deref())
+    }
+}
+
 impl<T: Ord> Ord for Trc<T> {
     /// Comparison for two `Trc<T>`s. The two are compared by calling `.cmp` on the inner values.
     ///
@@ -1586,7 +1498,28 @@ impl<T: Ord> Ord for Trc<T> {
     }
 }
 
+impl<T: Ord> Ord for SharedTrc<T> {
+    /// Comparison for two `SharedTrc<T>`s. The two are compared by calling `.cmp` on the inner values.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    /// use std::cmp::Ordering;
+    ///
+    /// let shared1: SharedTrc<_> = Trc::from(100).into();
+    /// let shared2: SharedTrc<_> = Trc::from(200).into();
+    /// assert_eq!(Ordering::Less, shared1.cmp(&shared2));
+    /// ```
+    #[inline]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.deref().cmp(other.deref())
+    }
+}
+
 impl<T: Eq> Eq for Trc<T> {}
+
+impl<T: Eq> Eq for SharedTrc<T> {}
 
 impl<T: PartialEq> PartialEq for Trc<T> {
     /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations.
@@ -1625,13 +1558,64 @@ impl<T: PartialEq> PartialEq for Trc<T> {
     }
 }
 
+impl<T: PartialEq> PartialEq for SharedTrc<T> {
+    /// Equality by value comparison for two `SharedTrc<T>`s, even if the data is in different allocoations.
+    ///
+    /// Calls `.eq` on the data.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let shared1: SharedTrc<_> = Trc::from(100).into();
+    /// let shared2: SharedTrc<_> = Trc::from(100).into();
+    /// assert!(shared1==shared2);
+    /// ```
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.deref().eq(other.deref())
+    }
+
+    /// Inequality by value comparison for two `SharedTrc<T>`s, even if the data is in different allocoations.
+    ///
+    /// Calls `.ne` on the data.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let shared1: SharedTrc<_> = Trc::from(100).into();
+    /// let shared2: SharedTrc<_> = Trc::from(200).into();
+    /// assert!(shared1!=shared2);
+    /// ```
+    #[allow(clippy::partialeq_ne_impl)]
+    #[inline]
+    fn ne(&self, other: &Self) -> bool {
+        self.deref().ne(other.deref())
+    }
+}
+
 impl<T: AsFd> AsFd for Trc<T> {
     fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
         (**self).as_fd()
     }
 }
 
+impl<T: AsFd> AsFd for SharedTrc<T> {
+    fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
+        (**self).as_fd()
+    }
+}
+
 impl<T: AsRawFd> AsRawFd for Trc<T> {
+    fn as_raw_fd(&self) -> std::os::fd::RawFd {
+        (**self).as_raw_fd()
+    }
+}
+
+impl<T: AsRawFd> AsRawFd for SharedTrc<T> {
     fn as_raw_fd(&self) -> std::os::fd::RawFd {
         (**self).as_raw_fd()
     }
@@ -1650,8 +1634,24 @@ impl<T: Error> Error for Trc<T> {
     }
 }
 
+#[allow(deprecated)]
+impl<T: Error> Error for SharedTrc<T> {
+    fn cause(&self) -> Option<&dyn Error> {
+        (**self).cause()
+    }
+    fn description(&self) -> &str {
+        (**self).description()
+    }
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        (**self).source()
+    }
+}
+
 impl<T: ?Sized> Unpin for Trc<T> {}
 impl<T: ?Sized> UnwindSafe for Trc<T> {}
+
+impl<T: ?Sized> Unpin for SharedTrc<T> {}
+impl<T: ?Sized> UnwindSafe for SharedTrc<T> {}
 
 fn create_from_iterator_exact<T>(
     iterator: impl Iterator<Item = T> + ExactSizeIterator,
