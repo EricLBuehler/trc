@@ -1713,7 +1713,6 @@ impl<T: Clone + ?Sized> FromIterator<T> for Trc<[T]> {
     }
 }
 
-
 //TODO: Integration with standard library for both, or use lib & conditional for just CoerceUnsized
 #[cfg(feature = "dyn_unstable")]
 impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Trc<U>> for Trc<T> {}
@@ -1723,7 +1722,10 @@ impl<T: ?Sized> std::ops::Receiver for Trc<T> {}
 //Because Trc is !DispatchFromDyn, fn _(self: Trc<Self>) cannot be implemented.
 
 #[cfg(feature = "dyn_unstable")]
-impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<SharedTrc<U>> for SharedTrc<T> {}
+impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<SharedTrc<U>>
+    for SharedTrc<T>
+{
+}
 
 #[cfg(feature = "dyn_unstable")]
 impl<T: ?Sized> std::ops::Receiver for SharedTrc<T> {}
