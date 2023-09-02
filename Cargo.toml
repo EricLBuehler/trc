@@ -14,6 +14,9 @@ categories = ["memory-management", "data-structures", "concurrency"]
 [dev-dependencies]
 criterion = "0.5.1"
 
+[features]
+dyn_unstable = []
+
 [[bench]]
 name = "benchmark"
 harness = false

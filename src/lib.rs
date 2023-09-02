@@ -18,6 +18,10 @@
 //! threads. See [`SharedTrc`] for it's API, which is similar to that of `Weak`.
 //! See [`SharedTrc`] for it's API, which is similar to that of [`Weak`].
 
+#![cfg_attr(feature = "dyn_unstable", feature(unsize))]
+#![cfg_attr(feature = "dyn_unstable", feature(coerce_unsized))]
+#![cfg_attr(feature = "dyn_unstable", feature(receiver_trait))]
+
 #[cfg(test)]
 mod tests;
 
@@ -1709,9 +1713,21 @@ impl<T: Clone + ?Sized> FromIterator<T> for Trc<[T]> {
     }
 }
 
+
 //TODO: Integration with standard library for both, or use lib & conditional for just CoerceUnsized
-//impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Trc<U>> for Trc<T> {}
-//impl<T: ?Sized> std::ops::Receiver for Trc<T> {}
+#[cfg(feature = "dyn_unstable")]
+impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Trc<U>> for Trc<T> {}
+
+#[cfg(feature = "dyn_unstable")]
+impl<T: ?Sized> std::ops::Receiver for Trc<T> {}
+//Because Trc is !DispatchFromDyn, fn _(self: Trc<Self>) cannot be implemented.
+
+#[cfg(feature = "dyn_unstable")]
+impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<SharedTrc<U>> for SharedTrc<T> {}
+
+#[cfg(feature = "dyn_unstable")]
+impl<T: ?Sized> std::ops::Receiver for SharedTrc<T> {}
+//Because SharedTrc is !DispatchFromDyn, fn _(self: SharedTrc<Self>) cannot be implemented.
 
 impl<T: ?Sized> Drop for Weak<T> {
     #[inline]

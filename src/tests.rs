@@ -228,3 +228,79 @@ fn test_ub_weak_as_ptr() {
     println!("{:?}", ptr);
     unsafe { Weak::from_raw(ptr) };
 }
+
+#[cfg(feature = "dyn_unstable")]
+#[test]
+fn test_coerce_unsized() {
+    trait Vehicle {
+        fn drive(&self);
+    }
+
+    struct Truck;
+
+    impl Vehicle for Truck {
+        fn drive(&self) {
+            println!("Truck is driving");
+        }
+    }
+
+    let vehicle: Trc<dyn Vehicle> = Trc::new(Truck);
+}
+
+#[cfg(feature = "dyn_unstable")]
+#[test]
+fn test_receiver() {
+    trait Vehicle {
+        fn drive(&self);
+    }
+
+    struct Truck;
+
+    impl Vehicle for Truck {
+        fn drive(&self) {
+            println!("Truck is driving");
+        }
+    }
+
+    let vehicle: Trc<dyn Vehicle> = Trc::new(Truck);
+    vehicle.drive();
+}
+
+#[cfg(feature = "dyn_unstable")]
+#[test]
+fn test_coerce_unsized_sharedtrc() {
+    trait Vehicle {
+        fn drive(&self);
+    }
+
+    struct Truck;
+
+    impl Vehicle for Truck {
+        fn drive(&self) {
+            println!("Truck is driving");
+        }
+    }
+
+    let shared: SharedTrc<Truck> = Trc::new(Truck).into();
+    let vehicle: SharedTrc<dyn Vehicle> = shared;
+}
+
+#[cfg(feaure = "dyn_unstable")]
+#[test]
+fn test_receiver_sharedtrc() {
+    trait Vehicle {
+        fn drive(&self);
+    }
+
+    struct Truck;
+
+    impl Vehicle for Truck {
+        fn drive(&self) {
+            println!("Truck is driving");
+        }
+    }
+
+    let shared: SharedTrc<Truck> = Trc::new(Truck).into();
+    let vehicle: SharedTrc<dyn Vehicle> = shared;
+    vehicle.drive();
+}
