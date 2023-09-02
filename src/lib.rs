@@ -68,7 +68,8 @@ struct SharedTrcInternal<T: ?Sized> {
 ///
 /// ## Construction behavior
 /// A `Trc` can be constructed via several methods, and even from a `SharedTrc` or `Weak`. When a `Trc` is created, memory is allocated
-/// and the atomic reference and weak reference counts are both set to 1 (with the exception of `Weak::upgrade`).
+/// and the atomic reference and weak reference counts are both set to 1 (with the exception of `Weak::upgrade`). All `Trc`s together 
+/// have an implicit weak reference to themselves, and thus the weak reference count is always at least 1.
 /// 
 /// ## Clone behavior
 /// When a `Trc` is cloned, it's internal (wrapped) data is not cloned. Instead, a new `Trc` that point to the data is constructed and returned.
@@ -131,7 +132,8 @@ pub struct Trc<T: ?Sized> {
 /// 
 /// ## Construction behavior
 /// A `SharedTrc` can be constructed explicitly using methods or using the `Into` trait. When a `SharedTrc` is constructed,
-/// no memory is allocated. However, the atomic reference count is incremented, has a small overhead.
+/// no memory is allocated. However, the atomic reference count is incremented, has a small overhead. All `SharedTrc`s together 
+/// have an implicit weak reference to themselves, and thus the weak reference count is always at least 1.
 ///
 /// ## Clone behavior
 /// When a `SharedTrc` is cloned, it's internal (wrapped) data is not cloned. Instead, a new `Trc` that points to the data is constructed and returned.
