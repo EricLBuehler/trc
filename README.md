@@ -13,11 +13,12 @@ Thread reference counting sets the atomic reference count to the number of threa
 
 A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
 A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.
-They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
-must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
+They break reference cycles by adding a layer of indirection and act as an observer. They cannot access the data directly, and
+must be converted back into a `Trc`. `Weak` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
 
-To soundly implement thread safety `Trc<T>` does not itself implement `Send` or `Sync`. However, `SharedTrc<T>` does, and it is the only way to 
-safely send a `Trc<T>` across threads. See `SharedTrc` for it's API, which is similar to that of `Weak`.
+To soundly implement thread safety `Trc` is `!Send` and `!Sync`. To solve this, `Trc` introduces a `SharedTrc<T>`, which is `Send` and `Sync`.
+`SharedTrc` is the only way to safely send a `Trc`'s data across threads without using a `Weak`.
+See `SharedTrc` for it's API, which is similar to that of `Weak`.
 
 Because `Trc` is not part of the standard library, the `CoerceUnsized` and `Receiver` traits cannot currently be implemented by default. However, `Trc` provides `dyn_unstable` trait which enables the above traits for `Trc` and `SharedTrc` and must be used with nightly Rust (`cargo +nightly ...`).
 

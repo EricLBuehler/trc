@@ -7,15 +7,15 @@
 //!
 //! ## Breaking reference cycles with `Weak<T>`
 //! A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
-//! A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.
-//! They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
-//! must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
+//! A `Weak` is a non-owning reference to the data held by a `Trc`.
+//! They break reference cycles by adding a layer of indirection and act as an observer. They cannot access the data directly, and
+//! must be converted back into `Trc`. `Weak` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
 //! See [`Weak`] for more information.
 //!
 //! ## Sending data across threads with `SharedTrc<T>`
-//! To soundly implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`].
-//! However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across
-//! threads. See [`SharedTrc`] for it's API, which is similar to that of `Weak`.
+//! To soundly implement thread safety `Trc<T>` is `!Send` and `!Sync`.
+//! To solve this, `Trc` introduces a `SharedTrc<T>`, which is [`Send`] and [`Sync`].
+//! `SharedTrc` is the only way to safely send a `Trc`'s data across threads without using a `Weak`.
 //! See [`SharedTrc`] for it's API, which is similar to that of [`Weak`].
 //!
 //! Because `Trc` is not part of the standard library,
@@ -66,38 +66,23 @@ struct SharedTrcInternal<T: ?Sized> {
 /// This means that two reference counts can be created: one for local thread use, and one atomic one for sharing between threads.
 /// Thread reference counting sets the atomic reference count to the number of threads using the data.
 ///
-/// ## Breaking reference cycles with `Weak<T>`
-/// A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
-/// A `Weak<T>` is a non-owning reference to the data held by a `Trc<T>`.
-/// They break reference cycles by adding a layer of indirection and act as an observer. They cannot even access the data directly, and
-/// must be converted back into `Trc<T>`. `Weak<T>` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
-/// See [`Weak`] for more information.
-///
-/// ## Sending data across threads with `SharedTrc<T>`
-/// To soundly implement thread safety `Trc<T>` does not implement [`Send`] or [`Sync`].
-/// However, [`SharedTrc`] does, and it is the only way to safely send a `Trc<T>` across threads.
-/// See [`SharedTrc`] for it's API, which is similar to that of [`Weak`].
-///
+/// ## Construction behavior
+/// A `Trc` can be constructed via several methods, and even from a `SharedTrc` or `Weak`. When a `Trc` is created, memory is allocated
+/// and the atomic reference and weak reference counts are both set to 1 (with the exception of `Weak::upgrade`).
+/// 
 /// ## Clone behavior
-/// When a `Trc<T>` is cloned, it's internal (wrapped) data stays at the same memory location, but a new `Trc<T>` is constructed and returned.
+/// When a `Trc` is cloned, it's internal (wrapped) data is not cloned. Instead, a new `Trc` that point to the data is constructed and returned.
 /// This makes a `clone` a relatively inexpensive operation because only a wrapper is constructed.
-/// This new `Trc<T>` points to the same memory, and all `Trc<T>`s that point to that memory in that thread will have their local thread reference counts incremented
-/// and their atomic reference counts unchanged.
-///
-/// To soundly implement thread safety `Trc<T>` does not itself implement [`Send`] or [`Sync`]. However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across
-/// threads. See [`SharedTrc`] for it's API, which is similar to that of `Weak`.
+/// All `Trc`s that point to the data in the thread will have their local thread reference counts incremented, with their atomic reference counts unchanged.
 ///
 /// ## Drop behavior
+/// When a `Trc` is dropped the local thread reference count is decremented. If it is zero, the atomic reference count is also decremented.
+/// If the atomic reference count and weak reference count are both zero, only then the memory freed.
 ///
-/// When a `Trc<T>` is dropped the local thread reference count is decremented. If it is zero, the atomic reference count is also decremented.
-/// If the atomic reference count is zero, then the internal data is dropped. Regardless of whether the atomic reference count is zero, the
-/// local `Trc<T>` is dropped.
-///
-/// ## [`Deref`] and `DerefMut` behavior
-/// For ease of developer use, `Trc<T>` comes with [`Deref`] implemented.
-/// `Trc<T>` automatically dereferences to `&T`. This allows method calls and member access of `T`.
-/// `DerefMut` is not directly implemented as that could cause UB due to the possibility of multiple `&mut` references to the `Trc`.
-/// To prevent name clashes, `Trc<T>`'s functions are associated.
+/// ## [`Deref`] behavior
+/// For ease of developer use, `Trc` implements [`Deref`].
+/// `Trc` automatically dereferences to `&T`. This allows method calls and member access of `T`.
+/// To prevent name clashes, `Trc<T>`'s methods are associated.
 ///
 /// ## Trait object behavior and limitations
 /// Because `Trc` is not in the standard library, it cannot implement the `CoerceUnsized` or `Receiever` traits by default in stable Rust.
@@ -138,17 +123,35 @@ pub struct Trc<T: ?Sized> {
     threadref: NonNull<usize>,
 }
 
-/// `SharedTrc<T>` is a thread-safe wrapper used to send `Trc<T>`s across threads.
+/// `SharedTrc` is a thread-safe wrapper used to send `Trc`s across threads.
 /// Unlike [`Trc`] (which is `!Send` and `!Sync`), `SharedTrc` is [`Send`] and [`Sync`]. This means that along with
 /// [`Weak`], `SharedTrc` is one of the ways to send a `Trc` across threads. However, unlike `Weak`, `SharedTrc` does not
 /// modify the weak count - and only modifies the strong count. In addition, `SharedTrc` will not fail on conversion
 /// back to a `Trc` because it prevents the data `T` from being dropped.
+/// 
+/// ## Construction behavior
+/// A `SharedTrc` can be constructed explicitly using methods or using the `Into` trait. When a `SharedTrc` is constructed,
+/// no memory is allocated. However, the atomic reference count is incremented, has a small overhead.
 ///
+/// ## Clone behavior
+/// When a `SharedTrc` is cloned, it's internal (wrapped) data is not cloned. Instead, a new `Trc` that points to the data is constructed and returned.
+/// In contrast with `Trc`, `SharedTrc` uses an atomic operation to increment the atomic reference count.
+/// This gives `SharedTrc::clone` move overhead than `Trc::clone`.
+///
+/// ## Drop behavior
+/// When a `SharedTrc` is dropped the atomic reference count is decremented.
+/// If the atomic reference count and weak reference count are both zero, only then the memory freed.
+///
+/// ## [`Deref`] behavior
+/// For ease of developer use, `SharedTrc` implements [`Deref`].
+/// `SharedTrc` automatically dereferences to `&T`. This allows method calls and member access of `T`.
+/// To prevent name clashes, `SharedTrc<T>`'s methods are associated.
+/// 
 /// ## Trait object behavior and limitations
 /// Because `SharedTrc` is not in the standard library, it cannot implement the `CoerceUnsized`, `DispatchFromDyn` or `Receiever` traits by default in stable Rust.
 /// However, `Trc` has a feature `dyn_unstable` that enables these features to be implemented for `SharedTrc` and allow coercion to trait objects
 /// (`SharedTrc<dyn T>`) as well as acting as a method receiver (`fn _(&self)`) and allowing trait-object safety with arbitrary self types (`fn _(self: Trc<Self>)`).
-///
+/// 
 /// ## Examples
 ///
 /// Example in a single thread:
@@ -167,13 +170,26 @@ pub struct SharedTrc<T: ?Sized> {
     data: NonNull<SharedTrcInternal<T>>,
 }
 
-/// `Weak<T>` is a non-owning reference to `Trc<T>`'s data. It is used to prevent cyclic references which cause memory to never be freed.
-/// `Weak<T>` does not keep the value alive (which can be dropped), they only keep the backing allocation alive. `Weak<T>` cannot even directly access the memory,
-/// and must be converted into `Trc<T>` to do so.
+/// `Weak` is a non-owning reference to `Trc`'s data. It is used to prevent cyclic references which cause memory to never be freed.
+/// `Weak` does not keep the value alive (which can be dropped), they only keep the backing allocation alive. `Weak` cannot directly access the data,
+/// and must be converted into `Trc` to do so.
 ///
-/// One use case of a `Weak<T>`
-/// is to create a tree: The parent nodes own the child nodes, and have strong `Trc<T>` references to their children. However, their children have `Weak<T>` references
-/// to their parents.
+/// ## Construction behavior
+/// A `Weak` is constructed from a `Trc`, and no memory is allocated.
+/// However, the weak reference count is incremented, which has a small overhead.
+///
+/// ## Clone behavior
+/// When a `Weak` is cloned, a new `Weak` that may point to the data is constructed and returned.
+/// In contrast with `Trc`, `Weak` uses an atomic operation to increment the weak reference count.
+/// This gives `Weak::clone` move overhead than `Trc::clone`.
+///
+/// ## Drop behavior
+/// When a `Weak` is dropped the weak reference count is decremented.
+/// If the atomic reference count and weak reference count are both zero, only then the memory freed.
+/// 
+/// One use case of a `Weak` is to create a tree: 
+/// The parent nodes own the child nodes, and have strong `Trc` references to their children. 
+/// However, their children have `Weak` references to their parents.
 ///
 /// To prevent name clashes, `Weak<T>`'s functions are associated.
 ///
