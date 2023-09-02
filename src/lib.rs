@@ -1890,6 +1890,34 @@ impl<T> Weak<T> {
             data: NonNull::from(Box::leak(sbx)),
         }
     }
+
+    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Weak<T>`.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::thread;
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    /// use trc::Weak;
+    ///
+    /// let trc = Trc::new(100);
+    /// let shared = SharedTrc::from_trc(&trc);
+    /// let weak = Trc::downgrade(&trc);
+    ///
+    /// let handle = thread::spawn(move || {
+    ///     assert_eq!(Weak::atomic_count(&weak), 2);
+    ///     let trc = SharedTrc::to_trc(shared);
+    /// });
+    ///
+    /// handle.join().unwrap();
+    /// assert_eq!(*trc, 100);
+    /// ```
+    #[inline]
+    pub fn atomic_count(this: &Self) -> usize {
+        unsafe { this.data.as_ref() }
+            .atomicref
+            .load(core::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 impl<T: ?Sized> Clone for Weak<T> {
