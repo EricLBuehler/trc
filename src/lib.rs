@@ -17,7 +17,7 @@
 //! However, `SharedTrc<T>` does, and it is the only way to safely send a `Trc<T>` across
 //! threads. See [`SharedTrc`] for it's API, which is similar to that of `Weak`.
 //! See [`SharedTrc`] for it's API, which is similar to that of [`Weak`].
-//! 
+//!
 //! Because `Trc` is not part of the standard library,
 //! the `CoerceUnsized` and `Receiver` traits cannot currently be implemented by default.
 //! However, `Trc` provides `dyn_unstable` trait which enables the above traits for
@@ -1742,10 +1742,10 @@ impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Shar
 impl<T: ?Sized> std::ops::Receiver for SharedTrc<T> {}
 
 #[cfg(feature = "dyn_unstable")]
-impl<T: ?Sized, U: ?Sized> core::ops::DispatchFromDyn<SharedTrc<U>> for SharedTrc<T>
-where
-    T: std::marker::Unsize<U>,
-{}
+impl<T: ?Sized, U: ?Sized> core::ops::DispatchFromDyn<SharedTrc<U>> for SharedTrc<T> where
+    T: std::marker::Unsize<U>
+{
+}
 //Because SharedTrc is !DispatchFromDyn, fn _(self: SharedTrc<Self>) cannot be implemented.
 
 impl<T: ?Sized> Drop for Weak<T> {

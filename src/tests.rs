@@ -305,7 +305,6 @@ fn test_receiver_sharedtrc() {
     vehicle.drive();
 }
 
-
 #[cfg(feature = "dyn_unstable")]
 #[test]
 fn test_dispatchfromdyn_sharedtrc() {
