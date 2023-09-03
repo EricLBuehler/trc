@@ -133,7 +133,7 @@ pub struct Trc<T: ?Sized> {
 /// `SharedTrc` is a thread-safe wrapper used to send `Trc`s across threads.
 /// Unlike [`Trc`] (which is `!Send` and `!Sync`), `SharedTrc` is [`Send`] and [`Sync`]. This means that along with
 /// [`Weak`], `SharedTrc` is one of the ways to send a `Trc` across threads. However, unlike `Weak`, `SharedTrc` does not
-/// modify the weak count - and only modifies the strong count. In addition, `SharedTrc` will not fail on conversion
+/// modify the weak count - and only modifies the atomic count. In addition, `SharedTrc` will not fail on conversion
 /// back to a `Trc` because it prevents the data `T` from being dropped.
 ///
 /// ## Construction behavior
@@ -255,7 +255,7 @@ impl<T: ?Sized> SharedTrc<T> {
             core::sync::atomic::Ordering::Acquire,
         );
         if prev > MAX_REFCOUNT {
-            panic!("Overflow of maximum strong reference count.");
+            panic!("Overflow of maximum atomic reference count.");
         }
         SharedTrc { data: trc.shared }
     }
@@ -348,7 +348,7 @@ impl SharedTrc<dyn Any + Send + Sync> {
 }
 
 impl<T: ?Sized> Clone for SharedTrc<T> {
-    /// Clone a `SharedTrc` (increment the strong count).
+    /// Clone a `SharedTrc` (increment the atomic count).
     ///
     /// # Examples
     /// ```
@@ -368,7 +368,7 @@ impl<T: ?Sized> Clone for SharedTrc<T> {
             core::sync::atomic::Ordering::AcqRel,
         );
         if prev > MAX_REFCOUNT {
-            panic!("Overflow of maximum strong reference count.");
+            panic!("Overflow of maximum atomic reference count.");
         }
         SharedTrc { data: self.data }
     }
@@ -775,7 +775,7 @@ impl<T> Trc<T> {
                 core::sync::atomic::Ordering::AcqRel,
             );
             if prev > MAX_REFCOUNT {
-                panic!("Overflow of maximum strong reference count.");
+                panic!("Overflow of maximum atomic reference count.");
             }
         }
 
@@ -1082,7 +1082,7 @@ impl<T: ?Sized> Trc<T> {
         this.shared.as_ptr() == other.shared.as_ptr()
     }
 
-    /// Gets the raw pointer to the most inner layer of `Trc`. This is only valid if there is are at least some strong references.
+    /// Gets the raw pointer to the most inner layer of `Trc`. This is only valid if there are at least some atomic references.
     ///
     /// # Examples
     /// ```
@@ -1286,7 +1286,7 @@ impl<T: ?Sized> Clone for Trc<T> {
     fn clone(&self) -> Self {
         unsafe { *self.threadref.as_ptr() += 1 };
         if unsafe { *self.threadref.as_ptr() } > MAX_REFCOUNT {
-            panic!("Overflow of maximum strong reference count.");
+            panic!("Overflow of maximum atomic reference count.");
         }
 
         Trc {
@@ -1903,7 +1903,7 @@ impl<T: ?Sized> Weak<T> {
                     // See comments in `Arc::clone` for why we do this (for `mem::forget`).
                     assert!(
                         n <= MAX_REFCOUNT,
-                        "Overflow of maximum strong reference count."
+                        "Overflow of maximum atomic reference count."
                     );
                     Some(n + 1)
                 },
@@ -1918,7 +1918,7 @@ impl<T: ?Sized> Weak<T> {
             })
     }
 
-    /// Gets the raw pointer to the most inner layer of `Weak`. The data is only valid (not dropped) if there is are at least some strong references.
+    /// Gets the raw pointer to the most inner layer of `Weak`. The data is only valid (not dropped) if there are at least some atomic references.
     ///
     /// # Examples
     /// ```
