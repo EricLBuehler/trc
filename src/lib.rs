@@ -511,7 +511,7 @@ impl<T> SharedTrc<T> {
     ///
     /// assert_eq!(unsafe { *ptr }, 100);
     ///
-    /// unsafe { Trc::from_raw(ptr) };
+    /// unsafe { SharedTrc::from_raw(ptr) };
     ///
     /// let strong = Trc::new("hello".to_owned());
     ///
@@ -537,6 +537,31 @@ impl<T> SharedTrc<T> {
         SharedTrc {
             data: NonNull::new_unchecked(data_ptr),
         }
+    }
+
+    /// Decrements the local reference count of the provided `decrement_local_count` associated with the provided pointer.
+    /// If the local count is 1, then the atomic count will also be decremented. If the atomic count is 0, the value will be dropped.
+    /// 
+    /// # Safety
+    /// - The provided pointer must have been obtained through `Trc::from_raw` or `SharedTrc::from_raw`.
+    /// - The atomic count must be at least 1.
+    /// - This method **should not** be called after the final `Trc` or `SharedTrc` has been released.
+    /// 
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let shared: SharedTrc<_> = Trc::new(100).into();
+    /// let ptr = SharedTrc::into_raw(shared);
+    ///
+    /// assert_eq!(unsafe { *ptr }, 100);
+    ///
+    /// unsafe { SharedTrc::decrement_local_count(ptr) };
+    /// ```
+    /// 
+    pub unsafe fn decrement_local_count(ptr: *const T) {
+        drop(SharedTrc::from_raw(ptr));
     }
 }
 
@@ -825,6 +850,30 @@ impl<T> Trc<T> {
             threadref: NonNull::from(Box::leak(tbx)),
             shared: NonNull::new_unchecked(data_ptr),
         }
+    }
+
+    /// Decrements the local reference count of the provided `Trc` associated with the provided pointer.
+    /// If the local count is 1, then the atomic count will also be decremented. If the atomic count is 0, the value will be dropped.
+    /// 
+    /// # Safety
+    /// - The provided pointer must have been obtained through `Trc::from_raw` or `SharedTrc::from_raw`.
+    /// - The atomic count must be at least 1.
+    /// - This method **should not** be called after the final `Trc` or `SharedTrc` has been released.
+    /// 
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let trc = Trc::new(100);
+    /// let ptr = Trc::into_raw(trc);
+    ///
+    /// assert_eq!(unsafe { *ptr }, 100);
+    ///
+    /// unsafe { Trc::decrement_local_count(ptr) };
+    /// ```
+    /// 
+    pub unsafe fn decrement_local_count(ptr: *const T) {
+        drop(Trc::from_raw(ptr));
     }
 }
 
