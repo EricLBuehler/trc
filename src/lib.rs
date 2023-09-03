@@ -94,6 +94,8 @@ struct SharedTrcInternal<T: ?Sized> {
 /// However, `Trc` has a feature `dyn_unstable` that enables these features to be implemented for `Trc` and allow coercion to trait objects
 /// (`Trc<dyn T>`) as well as acting as a method receiver (`fn _(&self)`). Unfortunately, because of the internal design of `Trc`, `DispatchFromDyn`
 /// cannot be implemented (so `fn _(self: Trc<Self>)` cannot be implemented). However, [`SharedTrc`] does implement `DispatchFromDyn`.
+/// 
+/// Similarly, because of the design of `Trc`, it would be unsound to include the `into/from_raw` or `increment/decrement_local_count` methods.
 ///
 /// ## Examples
 ///
@@ -311,7 +313,7 @@ impl<T: ?Sized> SharedTrc<T> {
 
 #[cfg(feature = "dyn_unstable")]
 impl SharedTrc<dyn Any + Send + Sync> {
-    /// Attemtpts to downcast a `SharedTrc<dyn Any + Send + Sync>` into a concrete type.
+    /// Attempts to downcast a `SharedTrc<dyn Any + Send + Sync>` into a concrete type.
     /// 
     /// # Examples
     /// ```
@@ -522,7 +524,7 @@ impl<T: ?Sized> SharedTrc<T> {
     ///
     /// assert_eq!(unsafe { *ptr }, 100);
     ///
-    /// unsafe { Trc::from_raw(ptr) };
+    /// unsafe { SharedTrc::from_raw(ptr) };
     /// ```
     pub fn into_raw(this: Self) -> *const T {
         let ptr = Self::as_ptr(&this);
@@ -858,62 +860,6 @@ impl<T> Trc<T> {
 
         Some(elem)
     }
-
-    /// Converts a `*const T` into `Trc<T>`. The caller must uphold the below safety constraints.
-    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
-    ///
-    /// # Safety
-    /// - The given pointer must be a valid pointer to `T` that came from `into_raw`.
-    /// - After `from_raw`, the pointer must not be accessed.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    ///
-    /// let trc = Trc::new(100);
-    /// let ptr = Trc::into_raw(trc);
-    ///
-    /// assert_eq!(unsafe { *ptr }, 100);
-    ///
-    /// unsafe { Trc::from_raw(ptr) };
-    /// ```
-    pub unsafe fn from_raw(ptr: *const T) -> Self {
-        let tbx = Box::new(1);
-
-        let layout = Layout::new::<SharedTrcInternal<()>>();
-        let n = layout.size();
-
-        let data_ptr = (ptr as *const u8).sub(n) as *mut SharedTrcInternal<T>;
-
-        Trc {
-            threadref: NonNull::from(Box::leak(tbx)),
-            shared: NonNull::new_unchecked(data_ptr),
-        }
-    }
-
-    /// Decrements the local reference count of the provided `Trc` associated with the provided pointer.
-    /// If the local count is 1, then the atomic count will also be decremented. If the atomic count is 0, the value will be dropped.
-    /// 
-    /// # Safety
-    /// - The provided pointer must have been obtained through `Trc::from_raw` or `SharedTrc::from_raw`.
-    /// - The atomic count must be at least 1.
-    /// - This method **should not** be called after the final `Trc` or `SharedTrc` has been released.
-    /// 
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    ///
-    /// let trc = Trc::new(100);
-    /// let ptr = Trc::into_raw(trc);
-    ///
-    /// assert_eq!(unsafe { *ptr }, 100);
-    ///
-    /// unsafe { Trc::decrement_local_count(ptr) };
-    /// ```
-    /// 
-    pub unsafe fn decrement_local_count(ptr: *const T) {
-        drop(Trc::from_raw(ptr));
-    }
 }
 
 impl<T> Trc<[T]> {
@@ -1159,28 +1105,6 @@ impl<T: ?Sized> Trc<T> {
             None
         }
     }
-
-    /// Converts a `Trc<T>` into `*const T`, without freeing the allocation.
-    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    ///
-    /// let trc = Trc::new(100);
-    /// let ptr = Trc::into_raw(trc);
-    ///
-    /// assert_eq!(unsafe { *ptr }, 100);
-    ///
-    /// unsafe { Trc::from_raw(ptr) };
-    /// ```
-    pub fn into_raw(this: Self) -> *const T {
-        let ptr = Self::as_ptr(&this);
-
-        drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
-        forget(this);
-        ptr
-    }
 }
 
 impl<T: Clone> Trc<T> {
@@ -1211,7 +1135,7 @@ impl<T: Clone> Trc<T> {
 
 #[cfg(feature = "dyn_unstable")]
 impl Trc<dyn Any + Send + Sync> {
-    /// Attemtpts to downcast a `Trc<dyn Any + Send + Sync>` into a concrete type.
+    /// Attempts to downcast a `Trc<dyn Any + Send + Sync>` into a concrete type.
     /// 
     /// # Examples
     /// ```
@@ -1986,7 +1910,7 @@ impl<T: ?Sized> Weak<T> {
     ///
     /// let trc = Trc::new(100);
     /// let weak = Trc::downgrade(&trc);
-    /// let ptr = Trc::into_raw(trc);
+    /// let ptr = Weak::into_raw(weak);
     ///
     /// assert_eq!(unsafe { *ptr }, 100);
     ///
