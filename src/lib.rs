@@ -49,6 +49,9 @@ use std::{
     ptr::{self, addr_of, addr_of_mut, slice_from_raw_parts_mut, write, NonNull},
 };
 
+#[cfg(feature = "dyn_unstable")]
+use std::any::Any;
+
 use core::sync::atomic::AtomicUsize;
 
 const MAX_REFCOUNT: usize = (isize::MAX) as usize;
@@ -303,6 +306,42 @@ impl<T: ?Sized> SharedTrc<T> {
         unsafe { this.data.as_ref() }
             .atomicref
             .load(core::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+#[cfg(feature = "dyn_unstable")]
+impl SharedTrc<dyn Any + Send + Sync> {
+    /// Attemtpts to downcast a `SharedTrc<dyn Any + Send + Sync>` into a concrete type.
+    /// 
+    /// # Examples
+    /// ```
+    /// use std::any::Any;
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    /// 
+    /// fn print_if_string(value: SharedTrc<dyn Any + Send + Sync>) {
+    ///     if let Ok(string) = value.downcast::<String>() {
+    ///         println!("String ({}): {}", string.len(), string);
+    ///     }
+    /// }
+    /// 
+    /// let my_string = "Hello World".to_string();
+    /// let a: Trc<dyn Any + Send + Sync> = Trc::new(my_string);
+    /// let b: Trc<dyn Any + Send + Sync> = Trc::new(0i8);
+    /// print_if_string(SharedTrc::from_trc(&a));
+    /// print_if_string(SharedTrc::from_trc(&b));
+    /// ```
+    pub fn downcast<T>(self) -> Result<SharedTrc<T>, Self>
+    where T: Any + Send + Sync
+    {
+        if (*self).is::<T>() {
+            let data = self.data.cast::<SharedTrcInternal<T>>();
+            forget(self);
+            Ok(SharedTrc {data})
+        }
+        else {
+            Err(self)
+        }
     }
 }
 
@@ -1167,6 +1206,43 @@ impl<T: Clone> Trc<T> {
     #[inline]
     pub fn unwrap_or_clone(this: Self) -> T {
         Trc::try_unwrap(this).unwrap_or_else(|trc| (*trc).clone())
+    }
+}
+
+#[cfg(feature = "dyn_unstable")]
+impl Trc<dyn Any + Send + Sync> {
+    /// Attemtpts to downcast a `Trc<dyn Any + Send + Sync>` into a concrete type.
+    /// 
+    /// # Examples
+    /// ```
+    /// use std::any::Any;
+    /// use trc::Trc;
+    /// 
+    /// fn print_if_string(value: Trc<dyn Any + Send + Sync>) {
+    ///     if let Ok(string) = value.downcast::<String>() {
+    ///         println!("String ({}): {}", string.len(), string);
+    ///     }
+    /// }
+    /// 
+    /// let my_string = "Hello World".to_string();
+    /// print_if_string(Trc::new(my_string));
+    /// print_if_string(Trc::new(0i8));
+    /// ```
+    pub fn downcast<T>(self) -> Result<Trc<T>, Self>
+    where T: Any + Send + Sync
+    {
+        if (*self).is::<T>() {
+            let shared = self.shared.cast::<SharedTrcInternal<T>>();
+            let threadref = self.threadref;
+            forget(self);
+            Ok(Trc {
+                            shared,
+                            threadref,
+                        })
+        }
+        else {
+            Err(self)
+        }
     }
 }
 
