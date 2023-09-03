@@ -543,6 +543,7 @@ impl<T> SharedTrc<T> {
     /// - After `from_raw`, the pointer must not be accessed.
     ///
     /// # Examples
+    /// Example 1:
     /// ```
     /// use trc::Trc;
     /// use trc::SharedTrc;
@@ -552,6 +553,13 @@ impl<T> SharedTrc<T> {
     ///
     /// assert_eq!(unsafe { *ptr }, 100);
     ///
+    /// ```
+    /// 
+    /// Example 2:
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    /// 
     /// unsafe { SharedTrc::from_raw(ptr) };
     ///
     /// let strong = Trc::new("hello".to_owned());
@@ -1960,6 +1968,7 @@ impl<T> Weak<T> {
     /// - After `from_raw`, the pointer must not be accessed.
     ///
     /// # Examples
+    /// Example 1:
     /// ```
     /// use trc::Trc;
     /// use trc::Weak;
@@ -1970,7 +1979,12 @@ impl<T> Weak<T> {
     /// assert_eq!(unsafe { *ptr }, 100);
     ///
     /// unsafe { Weak::from_raw(ptr) };
-    ///
+    /// ```
+    /// Example 2:
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    /// 
     /// let strong = Trc::new("hello".to_owned());
     ///
     /// let raw_1 = Weak::into_raw(Trc::downgrade(&strong));
