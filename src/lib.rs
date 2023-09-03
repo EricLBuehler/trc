@@ -580,12 +580,12 @@ impl<T> SharedTrc<T> {
         }
     }
 
-    /// Decrements the local reference count of the provided `decrement_local_count` associated with the provided pointer.
+    /// Decrements the local reference count of the provided `SharedTrc` associated with the provided pointer.
     /// If the local count is 1, then the atomic count will also be decremented. If the atomic count is 0, the value will be dropped.
     /// 
     /// # Safety
-    /// - The provided pointer must have been obtained through `Trc::from_raw` or `SharedTrc::from_raw`.
-    /// - The atomic count must be at least 1.
+    /// - The provided pointer must have been obtained through `SharedTrc::from_raw`.
+    /// - The atomic count must be at least 1 throughout the duration of this method.
     /// - This method **should not** be called after the final `Trc` or `SharedTrc` has been released.
     /// 
     /// # Examples
@@ -603,6 +603,36 @@ impl<T> SharedTrc<T> {
     /// 
     pub unsafe fn decrement_local_count(ptr: *const T) {
         drop(SharedTrc::from_raw(ptr));
+    }
+
+    /// Increments the local reference count of the provided `SharedTrc` associated with the provided pointer.
+    /// 
+    /// # Safety
+    /// - The provided pointer must have been obtained through `SharedTrc::from_raw`.
+    /// - The atomic count must be at least 1 throughout the duration of this method.
+    /// 
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    ///
+    /// let shared: SharedTrc<_> = Trc::new(100).into();
+    /// let shared2 = shared.clone();
+    /// let ptr = SharedTrc::into_raw(shared2);
+    ///
+    /// assert_eq!(unsafe { *ptr }, 100);
+    ///
+    /// unsafe { SharedTrc::increment_local_count(ptr) };
+    /// 
+    /// assert_eq!(SharedTrc::atomic_count(&shared), 3);
+    /// 
+    /// unsafe { SharedTrc::decrement_local_count(ptr) };
+    /// unsafe { SharedTrc::from_raw(ptr) };
+    /// ```
+    /// 
+    pub unsafe fn increment_local_count(ptr: *const T) {
+        let trc = ManuallyDrop::new(SharedTrc::from_raw(ptr));
+        let _: ManuallyDrop<_> = trc.clone();
     }
 }
 
