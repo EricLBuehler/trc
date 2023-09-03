@@ -144,7 +144,7 @@ pub struct Trc<T: ?Sized> {
 /// ## Clone behavior
 /// When a `SharedTrc` is cloned, it's internal (wrapped) data is not cloned. Instead, a new `Trc` that points to the data is constructed and returned.
 /// In contrast with `Trc`, `SharedTrc` uses an atomic operation to increment the atomic reference count.
-/// This gives `SharedTrc::clone` move overhead than `Trc::clone`.
+/// This gives [`SharedTrc::clone`] move overhead than [`Trc::clone`].
 ///
 /// ## Drop behavior
 /// When a `SharedTrc` is dropped the atomic reference count is decremented.
@@ -189,7 +189,7 @@ pub struct SharedTrc<T: ?Sized> {
 /// ## Clone behavior
 /// When a `Weak` is cloned, a new `Weak` that may point to the data is constructed and returned.
 /// In contrast with `Trc`, `Weak` uses an atomic operation to increment the weak reference count.
-/// This gives `Weak::clone` move overhead than `Trc::clone`.
+/// This gives [`Weak::clone`] move overhead than [`Trc::clone`].
 ///
 /// ## Drop behavior
 /// When a `Weak` is dropped the weak reference count is decremented.
@@ -235,9 +235,9 @@ pub struct Weak<T: ?Sized> {
 }
 
 impl<T: ?Sized> SharedTrc<T> {
-    /// Convert a `Trc<T>` to a `SharedTrc<T>`, incrementing it's atomic reference count.
-    /// While this `SharedTrc<T>` is alive, the data contained by `Trc<T>` will not be dropped, which is
-    /// unlike a `Weak<T>`.
+    /// Construct a `SharedTrc` from a `Trc`, incrementing it's atomic reference count.
+    /// While this `SharedTrc` is alive, the data contained by `Trc` will not be dropped, which is
+    /// unlike a `Weak`.
     ///
     /// # Examples
     /// ```
@@ -260,8 +260,8 @@ impl<T: ?Sized> SharedTrc<T> {
         SharedTrc { data: trc.shared }
     }
 
-    /// Convert a `SharedTrc<T>` to a `Trc<T>`. To prevent memory leaks, this function takes
-    /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it
+    /// Convert a `SharedTrc` to a `Trc`. To prevent memory leaks, this function takes
+    /// ownership of the `SharedTrc`. Unlike [`Trc::upgrade`], this function will not fail as it
     /// prevents the data from being dropped.
     ///
     /// # Examples
@@ -284,7 +284,7 @@ impl<T: ?Sized> SharedTrc<T> {
         res
     }
 
-    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `SharedTrc<T>`.
+    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `SharedTrc`.
     ///
     /// # Examples
     /// ```
@@ -348,7 +348,7 @@ impl SharedTrc<dyn Any + Send + Sync> {
 }
 
 impl<T: ?Sized> Clone for SharedTrc<T> {
-    /// Clone a `SharedTrc<T>` (increment the strong count).
+    /// Clone a `SharedTrc` (increment the strong count).
     ///
     /// # Examples
     /// ```
@@ -397,8 +397,8 @@ impl<T: ?Sized> Drop for SharedTrc<T> {
 }
 
 impl<T: ?Sized> From<SharedTrc<T>> for Trc<T> {
-    /// Convert a `SharedTrc<T>` to a `Trc<T>`. To prevent memory leaks, this function takes
-    /// ownership of the `SharedTrc`. Unlike `Weak::to_trc`, this function will not fail as it
+    /// Convert a `SharedTrc` to a `Trc`. To prevent memory leaks, this function takes
+    /// ownership of the `SharedTrc`. Unlike [`Weak::to_trc`], this function will not fail as it
     /// prevents the data from being dropped.
     ///
     /// # Examples
@@ -417,7 +417,7 @@ impl<T: ?Sized> From<SharedTrc<T>> for Trc<T> {
 }
 
 impl<T: ?Sized> From<&Trc<T>> for SharedTrc<T> {
-    /// Convert a `Trc<T>` to a `SharedTrc<T>`, incrementing it's atomic reference count.
+    /// Convert a `Trc` to a `SharedTrc`, incrementing it's atomic reference count.
     /// While this `SharedTrc<T>` is alive, the data contained by `Trc<T>` will not be dropped, which is
     /// unlike a `Weak<T>`.
     ///
@@ -453,8 +453,8 @@ impl<T: ?Sized> From<Trc<T>> for SharedTrc<T> {
 }
 
 impl<T: ?Sized> SharedTrc<T> {
-    /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of `SharedTrc<T>`.
-    /// It includes the implicit weak reference held by all `SharedTrc<T>` to themselves.
+    /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of `SharedTrc`.
+    /// It includes the implicit weak reference held by all `Trc` or `SharedTrc` to themselves.
     ///
     /// # Examples
     /// ```
@@ -477,7 +477,7 @@ impl<T: ?Sized> SharedTrc<T> {
             .load(core::sync::atomic::Ordering::Relaxed)
     }
 
-    /// Checks if the other `SharedTrc<T>` is equal to this one according to their internal pointers.
+    /// Checks if the other `SharedTrc` is equal to this one according to their internal pointers.
     ///
     /// # Examples
     /// ```
@@ -495,7 +495,7 @@ impl<T: ?Sized> SharedTrc<T> {
         this.data.as_ptr() == other.data.as_ptr()
     }
 
-    /// Gets the raw pointer to the most inner layer of `SharedTrc<T>`.
+    /// Gets the raw pointer to the most inner layer of `SharedTrc`.
     ///
     /// # Examples
     /// ```
@@ -511,8 +511,8 @@ impl<T: ?Sized> SharedTrc<T> {
         unsafe { addr_of_mut!((*sharedptr).data) }
     }
 
-    /// Converts a `SharedTrc<T>` into `*const T`, without freeing the allocation.
-    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
+    /// Converts a `SharedTrc` into `*const T`, without freeing the allocation.
+    /// To avoid a memory leak, be sure to call [`SharedTrc::from_raw`] to reclaim the allocation.
     ///
     /// # Examples
     /// ```
@@ -535,11 +535,10 @@ impl<T: ?Sized> SharedTrc<T> {
 }
 
 impl<T> SharedTrc<T> {
-    /// Converts a `*const T` into `SharedTrc<T>`. The caller must uphold the below safety constraints.
-    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
+    /// Converts a `*const T` into `SharedTrc`. The caller must uphold the below safety constraints.
     ///
     /// # Safety
-    /// - The given pointer must be a valid pointer to `T` that came from `into_raw`.
+    /// - The given pointer must be a valid pointer to `T` that came from [`SharedTrc::into_raw`].
     /// - After `from_raw`, the pointer must not be accessed.
     ///
     /// # Examples
@@ -552,6 +551,8 @@ impl<T> SharedTrc<T> {
     /// let ptr = SharedTrc::into_raw(shared);
     ///
     /// assert_eq!(unsafe { *ptr }, 100);
+    /// 
+    /// unsafe { SharedTrc::from_raw(ptr) };
     ///
     /// ```
     /// 
@@ -559,8 +560,7 @@ impl<T> SharedTrc<T> {
     /// ```
     /// use trc::Trc;
     /// use trc::Weak;
-    /// 
-    /// unsafe { SharedTrc::from_raw(ptr) };
+    /// use trc::SharedTrc;
     ///
     /// let strong = Trc::new("hello".to_owned());
     ///
@@ -676,7 +676,7 @@ fn sub_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::O
 }
 
 impl<T> Trc<T> {
-    /// Creates a new `Trc<T>` from the provided data.
+    /// Creates a new `Trc` from the provided data.
     ///
     /// # Examples
     /// ```
@@ -703,7 +703,7 @@ impl<T> Trc<T> {
         }
     }
 
-    /// Creates a new uninitialized `Trc<T>`.
+    /// Creates a new uninitialized `Trc`.
     ///
     /// # Examples
     /// ```
@@ -735,9 +735,9 @@ impl<T> Trc<T> {
         }
     }
 
-    /// Creates a new cyclic `Trc<T>` from the provided data. It allows the storage of `Weak<T>` which points the the allocation
-    /// of `Trc<T>`inside of `T`. Holding a `Trc<T>` inside of `T` would cause a memory leak. This method works around this by
-    /// providing a `Weak<T>` during the construction of the `Trc<T>`, so that the `T` can store the `Weak<T>` internally.
+    /// Creates a new cyclic `Trc` from the provided data. It allows the storage of `Weak` which points the the allocation
+    /// of `Trc`inside of `T`. Holding a `Trc` inside of `T` would cause a memory leak. This method works around this by
+    /// providing a `Weak` during the construction of the `Trc`, so that the `T` can store the `Weak` internally.
     ///
     /// # Examples
     /// ```
@@ -787,7 +787,7 @@ impl<T> Trc<T> {
         }
     }
 
-    /// Creates a new `Pin<Trc<T>>`. If `T` does not implement [`Unpin`], then the data will be pinned in memory and unable to be moved.
+    /// Creates a new pinned `Trc`. If `T` does not implement [`Unpin`], then the data will be pinned in memory and unable to be moved.
     #[inline]
     pub fn pin(data: T) -> Pin<Trc<T>> {
         unsafe { Pin::new_unchecked(Trc::new(data)) }
@@ -901,7 +901,7 @@ impl<T> Trc<T> {
 }
 
 impl<T> Trc<[T]> {
-    /// Constructs a new Trc slice with uninitialized contents.
+    /// Constructs a new `Trc` slice with uninitialized contents.
     ///
     /// # Examples
     /// ```
@@ -942,7 +942,7 @@ impl<T> Trc<[T]> {
 }
 
 impl<T> Trc<MaybeUninit<T>> {
-    /// Converts to `Trc<T>`.
+    /// Assume that `Trc<MaybeUninit<T>>` is initialized, converting it to `Trc<T>`.
     ///
     /// # Safety
     /// As with `MaybeUninit::assume_init`, it is up to the caller to guarantee that the inner value really is in an initialized state.
@@ -974,7 +974,7 @@ impl<T> Trc<MaybeUninit<T>> {
 }
 
 impl<T> Trc<[MaybeUninit<T>]> {
-    /// Converts to `Trc<[T]>`.
+    /// Assume that all elements in `Trc<[MaybeUninit<T>]>` are initialized, converting it to `Trc<[T]>`.
     ///
     /// # Safety
     /// As with `MaybeUninit::assume_init`, it is up to the caller to guarantee that the inner value really is in an initialized state.
@@ -1006,7 +1006,7 @@ impl<T> Trc<[MaybeUninit<T>]> {
 }
 
 impl<T: ?Sized> Trc<T> {
-    /// Return the local thread reference count of the object, which is how many `Trc<T>`s in this thread point to the data referenced by this `Trc<T>`.
+    /// Return the local thread reference count of the object, which is how many `Trc`s in this thread point to the data referenced by this `Trc`.
     ///
     /// # Examples
     /// ```
@@ -1020,7 +1020,7 @@ impl<T: ?Sized> Trc<T> {
         *unsafe { this.threadref.as_ref() }
     }
 
-    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc<T>`.
+    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc`.
     /// ```
     /// use std::thread;
     /// use trc::Trc;
@@ -1045,8 +1045,8 @@ impl<T: ?Sized> Trc<T> {
             .load(core::sync::atomic::Ordering::Relaxed)
     }
 
-    /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of `Trc<T>`.
-    /// It includes the implicit weak reference held by all `Trc<T>` to themselves.
+    /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of `Trc`.
+    /// It includes the implicit weak reference held by all `Trc` or `SharedTrc` to themselves.
     ///
     /// # Examples
     /// ```
@@ -1067,7 +1067,7 @@ impl<T: ?Sized> Trc<T> {
             .load(core::sync::atomic::Ordering::Relaxed)
     }
 
-    /// Checks if the other `Trc<T>` is equal to this one according to their internal pointers.
+    /// Checks if the other `Trc` is equal to this one according to their internal pointers.
     ///
     /// # Examples
     /// ```
@@ -1082,7 +1082,7 @@ impl<T: ?Sized> Trc<T> {
         this.shared.as_ptr() == other.shared.as_ptr()
     }
 
-    /// Gets the raw pointer to the most inner layer of `Trc<T>`. This is only valid if there is are at least some strong references.
+    /// Gets the raw pointer to the most inner layer of `Trc`. This is only valid if there is are at least some strong references.
     ///
     /// # Examples
     /// ```
@@ -1206,7 +1206,7 @@ impl Trc<dyn Any + Send + Sync> {
 }
 
 impl<T: ?Sized> Trc<T> {
-    /// Create a `Weak<T>` from a `Trc<T>`. This increments the weak count.
+    /// Downgrade a `Trc` to a `Weak`. This increments the weak count.
     ///
     /// # Examples
     /// ```
@@ -1273,7 +1273,7 @@ impl<T: ?Sized> Drop for Trc<T> {
 }
 
 impl<T: ?Sized> Clone for Trc<T> {
-    /// Clone a `Trc<T>` (increment it's local reference count).
+    /// Clone a `Trc` (increment it's local reference count).
     /// It will panic if the local reference count overflows.
     /// ```
     /// use trc::Trc;
@@ -1369,7 +1369,7 @@ impl<T: ?Sized> Pointer for SharedTrc<T> {
 }
 
 impl<T> From<T> for Trc<T> {
-    /// Create a new `Trc<T>` from the provided data. This is equivalent to calling `Trc::new` on the same data.
+    /// Create a new `Trc` from the provided data. This is equivalent to calling `Trc::new` on the same data.
     ///
     /// # Examples
     /// ```
@@ -1384,7 +1384,7 @@ impl<T> From<T> for Trc<T> {
 }
 
 impl<T: Hash> Hash for Trc<T> {
-    /// Pass the data contained in this `Trc<T>` to the provided hasher.
+    /// Pass the data contained in this `Trc` to the provided hasher.
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.deref().hash(state);
@@ -1392,7 +1392,7 @@ impl<T: Hash> Hash for Trc<T> {
 }
 
 impl<T: Hash> Hash for SharedTrc<T> {
-    /// Pass the data contained in this `SharedTrc<T>` to the provided hasher.
+    /// Pass the data contained in this `SharedTrc` to the provided hasher.
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.deref().hash(state);
@@ -1400,7 +1400,7 @@ impl<T: Hash> Hash for SharedTrc<T> {
 }
 
 impl<T: PartialOrd> PartialOrd for Trc<T> {
-    /// "Greater than or equal to" comparison for two `Trc<T>`s.
+    /// "Greater than or equal to" comparison for two `Trc`s.
     ///
     /// Calls `.ge` on the data.
     ///
@@ -1417,7 +1417,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
         self.deref().ge(other.deref())
     }
 
-    /// "Less than or equal to" comparison for two `Trc<T>`s.
+    /// "Less than or equal to" comparison for two `Trc`s.
     ///
     /// Calls `.le` on the data.
     ///
@@ -1434,7 +1434,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
         self.deref().ge(other.deref())
     }
 
-    /// "Greater than" comparison for two `Trc<T>`s.
+    /// "Greater than" comparison for two `Trc`s.
     ///
     /// Calls `.gt` on the data.
     ///
@@ -1451,7 +1451,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
         self.deref().gt(other.deref())
     }
 
-    /// "Less than" comparison for two `Trc<T>`s.
+    /// "Less than" comparison for two `Trc`s.
     ///
     /// Calls `.lt` on the data.
     ///
@@ -1468,7 +1468,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
         self.deref().lt(other.deref())
     }
 
-    /// Partial comparison for two `Trc<T>`s.
+    /// Partial comparison for two `Trc`s.
     ///
     /// Calls `.partial_cmp` on the data.
     ///
@@ -1488,7 +1488,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
 }
 
 impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
-    /// "Greater than or equal to" comparison for two `SharedTrc<T>`s.
+    /// "Greater than or equal to" comparison for two `SharedTrc`s.
     ///
     /// Calls `.ge` on the data.
     ///
@@ -1506,7 +1506,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
         self.deref().ge(other.deref())
     }
 
-    /// "Less than or equal to" comparison for two `SharedTrc<T>`s.
+    /// "Less than or equal to" comparison for two `SharedTrc`s.
     ///
     /// Calls `.le` on the data.
     ///
@@ -1524,7 +1524,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
         self.deref().ge(other.deref())
     }
 
-    /// "Greater than" comparison for two `SharedTrc<T>`s.
+    /// "Greater than" comparison for two `SharedTrc`s.
     ///
     /// Calls `.gt` on the data.
     ///
@@ -1542,7 +1542,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
         self.deref().gt(other.deref())
     }
 
-    /// "Less than" comparison for two `SharedTrc<T>`s.
+    /// "Less than" comparison for two `SharedTrc`s.
     ///
     /// Calls `.lt` on the data.
     ///
@@ -1560,7 +1560,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
         self.deref().lt(other.deref())
     }
 
-    /// Partial comparison for two `SharedTrc<T>`s.
+    /// Partial comparison for two `SharedTrc`s.
     ///
     /// Calls `.partial_cmp` on the data.
     ///
@@ -1581,7 +1581,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
 }
 
 impl<T: Ord> Ord for Trc<T> {
-    /// Comparison for two `Trc<T>`s. The two are compared by calling `.cmp` on the inner values.
+    /// Comparison for two `Trc`s. The two are compared by calling `.cmp` on the inner values.
     ///
     /// # Examples
     /// ```
@@ -1599,7 +1599,7 @@ impl<T: Ord> Ord for Trc<T> {
 }
 
 impl<T: Ord> Ord for SharedTrc<T> {
-    /// Comparison for two `SharedTrc<T>`s. The two are compared by calling `.cmp` on the inner values.
+    /// Comparison for two `SharedTrc`s. The two are compared by calling `.cmp` on the inner values.
     ///
     /// # Examples
     /// ```
@@ -1622,7 +1622,7 @@ impl<T: Eq> Eq for Trc<T> {}
 impl<T: Eq> Eq for SharedTrc<T> {}
 
 impl<T: PartialEq> PartialEq for Trc<T> {
-    /// Equality by value comparison for two `Trc<T>`s, even if the data is in different allocoations.
+    /// Equality by value comparison for two `Trc`s, even if the data is in different allocoations.
     ///
     /// Calls `.eq` on the data.
     ///
@@ -1639,7 +1639,7 @@ impl<T: PartialEq> PartialEq for Trc<T> {
         self.deref().eq(other.deref())
     }
 
-    /// Inequality by value comparison for two `Trc<T>`s, even if the data is in different allocoations.
+    /// Inequality by value comparison for two `Trc`s, even if the data is in different allocoations.
     ///
     /// Calls `.ne` on the data.
     ///
@@ -1659,7 +1659,7 @@ impl<T: PartialEq> PartialEq for Trc<T> {
 }
 
 impl<T: PartialEq> PartialEq for SharedTrc<T> {
-    /// Equality by value comparison for two `SharedTrc<T>`s, even if the data is in different allocoations.
+    /// Equality by value comparison for two `SharedTrc`s, even if the data is in different allocoations.
     ///
     /// Calls `.eq` on the data.
     ///
@@ -1677,7 +1677,7 @@ impl<T: PartialEq> PartialEq for SharedTrc<T> {
         self.deref().eq(other.deref())
     }
 
-    /// Inequality by value comparison for two `SharedTrc<T>`s, even if the data is in different allocoations.
+    /// Inequality by value comparison for two `SharedTrc`s, even if the data is in different allocoations.
     ///
     /// Calls `.ne` on the data.
     ///
@@ -1874,7 +1874,7 @@ impl<T: ?Sized> Drop for Weak<T> {
 }
 
 impl<T: ?Sized> Weak<T> {
-    /// Create a `Trc<T>` from a `Weak<T>`. Because `Weak<T>` does not own the value, it might have been dropped already. If it has, a `None` is returned.
+    /// Upgrade a `Weak` to a `Trc`. Because `Weak<` does not own the value, it may have been dropped already. If it has, a `None` is returned.
     /// If the value has not been dropped, then this function a) decrements the weak count, and b) increments the atomic reference count of the object.
     ///
     /// # Examples
@@ -1918,7 +1918,7 @@ impl<T: ?Sized> Weak<T> {
             })
     }
 
-    /// Gets the raw pointer to the most inner layer of `Weak<T>`. This is only valid if there is are at least some strong references.
+    /// Gets the raw pointer to the most inner layer of `Weak`. The data is only valid (not dropped) if there is are at least some strong references.
     ///
     /// # Examples
     /// ```
@@ -1935,8 +1935,8 @@ impl<T: ?Sized> Weak<T> {
         unsafe { addr_of_mut!((*sharedptr).data) }
     }
 
-    /// Converts a `Weak<T>` into `*const T`, without freeing the allocation.
-    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
+    /// Converts a `Weak` into `*const T`, without freeing the allocation.
+    /// To avoid a memory leak, be sure to call [`Weak::from_raw`] to reclaim the allocation.
     ///
     /// # Examples
     /// ```
@@ -1960,11 +1960,10 @@ impl<T: ?Sized> Weak<T> {
 }
 
 impl<T> Weak<T> {
-    /// Converts a `*const T` into `Weak<T>`. The caller must uphold the below safety constraints.
-    /// To avoid a memory leak, be sure to call `from_raw` to reclaim the allocation.
+    /// Converts a `*const T` into `Weak`. The caller must uphold the below safety constraints.
     ///
     /// # Safety
-    /// - The given pointer must be a valid pointer to `T` that came from `into_raw`.
+    /// - The given pointer must be a valid pointer to `T` that came from [`Weak::into_raw`].
     /// - After `from_raw`, the pointer must not be accessed.
     ///
     /// # Examples
@@ -2011,7 +2010,7 @@ impl<T> Weak<T> {
         }
     }
 
-    /// Create a new, uninitialized `Weak<T>`. Calling `Weak::upgrade` on this will always return `None.
+    /// Create a new, uninitialized `Weak`. Calling [`Weak::upgrade`] on this will always return `None.
     ///
     /// # Examples
     /// ```
@@ -2038,7 +2037,7 @@ impl<T> Weak<T> {
         }
     }
 
-    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Weak<T>`.
+    /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Weak`.
     ///
     /// # Examples
     /// ```
@@ -2065,10 +2064,34 @@ impl<T> Weak<T> {
             .atomicref
             .load(core::sync::atomic::Ordering::Relaxed)
     }
+
+    /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of the `Weak`.
+    /// It includes the implicit weak reference held by all `SharedTrc` or `Trc` to themselves.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    /// use trc::Weak;
+    ///
+    /// let trc = Trc::new(100i32);
+    /// let weak = Trc::downgrade(&trc);
+    /// let weak2 = Trc::downgrade(&trc);
+    /// let new_trc = Weak::upgrade(&weak).expect("Value was dropped");
+    /// drop(weak);
+    /// let shared: SharedTrc<_> = trc.into();
+    /// assert_eq!(SharedTrc::weak_count(&shared), 2);
+    /// ```
+    #[inline]
+    pub fn weak_count(this: &Self) -> usize {
+        unsafe { this.data.as_ref() }
+            .weakcount
+            .load(core::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 impl<T: ?Sized> Clone for Weak<T> {
-    /// Clone a `Weak<T>` (increment the weak count).
+    /// Clone a `Weak` (increment the weak count).
     ///
     /// # Examples
     /// ```
