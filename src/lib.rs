@@ -94,7 +94,7 @@ struct SharedTrcInternal<T: ?Sized> {
 /// However, `Trc` has a feature `dyn_unstable` that enables these features to be implemented for `Trc` and allow coercion to trait objects
 /// (`Trc<dyn T>`) as well as acting as a method receiver (`fn _(&self)`). Unfortunately, because of the internal design of `Trc`, `DispatchFromDyn`
 /// cannot be implemented (so `fn _(self: Trc<Self>)` cannot be implemented). However, [`SharedTrc`] does implement `DispatchFromDyn`.
-/// 
+///
 /// Similarly, because of the design of `Trc`, it would be unsound to include the `into/from_raw` or `increment/decrement_local_count` methods.
 ///
 /// ## Examples
@@ -314,19 +314,19 @@ impl<T: ?Sized> SharedTrc<T> {
 #[cfg(feature = "dyn_unstable")]
 impl SharedTrc<dyn Any + Send + Sync> {
     /// Attempts to downcast a `SharedTrc<dyn Any + Send + Sync>` into a concrete type.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use std::any::Any;
     /// use trc::Trc;
     /// use trc::SharedTrc;
-    /// 
+    ///
     /// fn print_if_string(value: SharedTrc<dyn Any + Send + Sync>) {
     ///     if let Ok(string) = value.downcast::<String>() {
     ///         println!("String ({}): {}", string.len(), string);
     ///     }
     /// }
-    /// 
+    ///
     /// let my_string = "Hello World".to_string();
     /// let a: Trc<dyn Any + Send + Sync> = Trc::new(my_string);
     /// let b: Trc<dyn Any + Send + Sync> = Trc::new(0i8);
@@ -334,14 +334,14 @@ impl SharedTrc<dyn Any + Send + Sync> {
     /// print_if_string(SharedTrc::from_trc(&b));
     /// ```
     pub fn downcast<T>(self) -> Result<SharedTrc<T>, Self>
-    where T: Any + Send + Sync
+    where
+        T: Any + Send + Sync,
     {
         if (*self).is::<T>() {
             let data = self.data.cast::<SharedTrcInternal<T>>();
             forget(self);
-            Ok(SharedTrc {data})
-        }
-        else {
+            Ok(SharedTrc { data })
+        } else {
             Err(self)
         }
     }
@@ -582,12 +582,12 @@ impl<T> SharedTrc<T> {
 
     /// Decrements the local reference count of the provided `SharedTrc` associated with the provided pointer.
     /// If the local count is 1, then the atomic count will also be decremented. If the atomic count is 0, the value will be dropped.
-    /// 
+    ///
     /// # Safety
     /// - The provided pointer must have been obtained through `SharedTrc::from_raw`.
     /// - The atomic count must be at least 1 throughout the duration of this method.
     /// - This method **should not** be called after the final `Trc` or `SharedTrc` has been released.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -600,17 +600,17 @@ impl<T> SharedTrc<T> {
     ///
     /// unsafe { SharedTrc::decrement_local_count(ptr) };
     /// ```
-    /// 
+    ///
     pub unsafe fn decrement_local_count(ptr: *const T) {
         drop(SharedTrc::from_raw(ptr));
     }
 
     /// Increments the local reference count of the provided `SharedTrc` associated with the provided pointer.
-    /// 
+    ///
     /// # Safety
     /// - The provided pointer must have been obtained through `SharedTrc::from_raw`.
     /// - The atomic count must be at least 1 throughout the duration of this method.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use trc::Trc;
@@ -623,13 +623,13 @@ impl<T> SharedTrc<T> {
     /// assert_eq!(unsafe { *ptr }, 100);
     ///
     /// unsafe { SharedTrc::increment_local_count(ptr) };
-    /// 
+    ///
     /// assert_eq!(SharedTrc::atomic_count(&shared), 3);
-    /// 
+    ///
     /// unsafe { SharedTrc::decrement_local_count(ptr) };
     /// unsafe { SharedTrc::from_raw(ptr) };
     /// ```
-    /// 
+    ///
     pub unsafe fn increment_local_count(ptr: *const T) {
         let trc = ManuallyDrop::new(SharedTrc::from_raw(ptr));
         let _: ManuallyDrop<_> = trc.clone();
@@ -1166,35 +1166,32 @@ impl<T: Clone> Trc<T> {
 #[cfg(feature = "dyn_unstable")]
 impl Trc<dyn Any + Send + Sync> {
     /// Attempts to downcast a `Trc<dyn Any + Send + Sync>` into a concrete type.
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use std::any::Any;
     /// use trc::Trc;
-    /// 
+    ///
     /// fn print_if_string(value: Trc<dyn Any + Send + Sync>) {
     ///     if let Ok(string) = value.downcast::<String>() {
     ///         println!("String ({}): {}", string.len(), string);
     ///     }
     /// }
-    /// 
+    ///
     /// let my_string = "Hello World".to_string();
     /// print_if_string(Trc::new(my_string));
     /// print_if_string(Trc::new(0i8));
     /// ```
     pub fn downcast<T>(self) -> Result<Trc<T>, Self>
-    where T: Any + Send + Sync
+    where
+        T: Any + Send + Sync,
     {
         if (*self).is::<T>() {
             let shared = self.shared.cast::<SharedTrcInternal<T>>();
             let threadref = self.threadref;
             forget(self);
-            Ok(Trc {
-                            shared,
-                            threadref,
-                        })
-        }
-        else {
+            Ok(Trc { shared, threadref })
+        } else {
             Err(self)
         }
     }
