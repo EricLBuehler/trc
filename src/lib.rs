@@ -5,18 +5,16 @@
 //! This means that two reference counts can be created: one for local thread use, and one atomic one for sharing between threads.
 //! Thread reference counting sets the atomic reference count to the number of threads using the data.
 //!
-//! ## Breaking reference cycles with `Weak<T>`
+//! ## Breaking reference cycles with [`Weak<T>`]
 //! A cycle between `Trc` pointers cannot be deallocated as the reference counts will never reach zero. The solution is a `Weak<T>`.
 //! A `Weak` is a non-owning reference to the data held by a `Trc`.
 //! They break reference cycles by adding a layer of indirection and act as an observer. They cannot access the data directly, and
 //! must be converted back into `Trc`. `Weak` does not keep the value alive (which can be dropped), and only keeps the backing allocation alive.
-//! See [`Weak`] for more information.
 //!
-//! ## Sending data across threads with `SharedTrc<T>`
+//! ## Sending data across threads with [`SharedTrc<T>`]
 //! To soundly implement thread safety `Trc<T>` is `!Send` and `!Sync`.
 //! To solve this, `Trc` introduces a `SharedTrc<T>`, which is [`Send`] and [`Sync`].
 //! `SharedTrc` is the only way to safely send a `Trc`'s data across threads without using a `Weak`.
-//! See [`SharedTrc`] for it's API, which is similar to that of [`Weak`].
 //!
 //! Because `Trc` is not part of the standard library,
 //! the `CoerceUnsized` and `Receiver` traits cannot currently be implemented by default.
