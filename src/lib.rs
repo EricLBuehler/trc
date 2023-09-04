@@ -549,11 +549,11 @@ impl<T> SharedTrc<T> {
     /// let ptr = SharedTrc::into_raw(shared);
     ///
     /// assert_eq!(unsafe { *ptr }, 100);
-    /// 
+    ///
     /// unsafe { SharedTrc::from_raw(ptr) };
     ///
     /// ```
-    /// 
+    ///
     /// Example 2:
     /// ```
     /// use trc::Trc;
@@ -1981,7 +1981,7 @@ impl<T> Weak<T> {
     /// ```
     /// use trc::Trc;
     /// use trc::Weak;
-    /// 
+    ///
     /// let strong = Trc::new("hello".to_owned());
     ///
     /// let raw_1 = Weak::into_raw(Trc::downgrade(&strong));
