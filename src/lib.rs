@@ -41,11 +41,16 @@ use std::{
     hash::{Hash, Hasher},
     mem::{forget, ManuallyDrop, MaybeUninit},
     ops::Deref,
-    os::fd::{AsFd, AsRawFd},
     panic::UnwindSafe,
     pin::Pin,
     ptr::{self, addr_of, addr_of_mut, slice_from_raw_parts_mut, write, NonNull},
 };
+
+#[cfg(not(target_os = "windows"))]
+use std::os::fd::{AsFd, AsRawFd};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::io::{AsRawHandle, AsRawSocket};
 
 #[cfg(feature = "dyn_unstable")]
 use std::any::Any;
@@ -1695,27 +1700,59 @@ impl<T: PartialEq> PartialEq for SharedTrc<T> {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 impl<T: AsFd> AsFd for Trc<T> {
     fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
         (**self).as_fd()
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 impl<T: AsFd> AsFd for SharedTrc<T> {
     fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
         (**self).as_fd()
     }
 }
 
+#[cfg(target_os = "windows")]
+impl<T: AsRawHandle> AsRawHandle for Trc<T> {
+    fn as_raw_handle(&self) -> std::os::fd::BorrowedFd<'_> {
+        (**self).as_raw_handle()
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl<T: AsRawHandle> AsRawHandle for SharedTrc<T> {
+    fn as_raw_handle(&self) -> std::os::fd::BorrowedFd<'_> {
+        (**self).as_raw_handle()
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
 impl<T: AsRawFd> AsRawFd for Trc<T> {
     fn as_raw_fd(&self) -> std::os::fd::RawFd {
         (**self).as_raw_fd()
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 impl<T: AsRawFd> AsRawFd for SharedTrc<T> {
     fn as_raw_fd(&self) -> std::os::fd::RawFd {
         (**self).as_raw_fd()
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl<T: AsRawSocket> AsRawSocket for Trc<T> {
+    fn as_raw_socket(&self) -> std::os::fd::BorrowedFd<'_> {
+        (**self).as_raw_socket()
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl<T: AsRawSocket> AsRawSocket for SharedTrc<T> {
+    fn as_raw_socket(&self) -> std::os::fd::BorrowedFd<'_> {
+        (**self).as_raw_socket()
     }
 }
 

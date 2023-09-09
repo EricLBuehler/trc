@@ -11,12 +11,22 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        rust: [stable]
 
     steps:
     - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build
+    - uses: actions-rs/toolchain@v3
+      with:
+        profile: minimal
+        toolchain: ${{ matrix.rust }}
+        override: true
+    - uses: actions-rs/cargo@v3
+      with:
+        commad: check
       
   formatting:
     runs-on: ubuntu-latest
