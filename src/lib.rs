@@ -50,7 +50,7 @@ use std::{
 use std::os::fd::{AsFd, AsRawFd};
 
 #[cfg(target_os = "windows")]
-use std::os::windows::io::{AsRawHandle, AsRawSocket};
+use std::os::windows::io::{AsRawHandle, AsRawSocket, AsHandle, AsSocket};
 
 #[cfg(feature = "dyn_unstable")]
 use std::any::Any;
@@ -1716,15 +1716,29 @@ impl<T: AsFd> AsFd for SharedTrc<T> {
 
 #[cfg(target_os = "windows")]
 impl<T: AsRawHandle> AsRawHandle for Trc<T> {
-    fn as_raw_handle(&self) -> std::os::fd::BorrowedFd<'_> {
+    fn as_raw_handle(&self) -> std::os::windows::io::RawHandle {
         (**self).as_raw_handle()
     }
 }
 
 #[cfg(target_os = "windows")]
 impl<T: AsRawHandle> AsRawHandle for SharedTrc<T> {
-    fn as_raw_handle(&self) -> std::os::fd::BorrowedFd<'_> {
+    fn as_raw_handle(&self) -> std::os::windows::io::RawHandle {
         (**self).as_raw_handle()
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl<T: AsHandle> AsHandle for Trc<T> {
+    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle<'_> {
+        (**self).as_handle()
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl<T: AsHandle> AsHandle for SharedTrc<T> {
+    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle<'_> {
+        (**self).as_handle()
     }
 }
 
@@ -1744,15 +1758,29 @@ impl<T: AsRawFd> AsRawFd for SharedTrc<T> {
 
 #[cfg(target_os = "windows")]
 impl<T: AsRawSocket> AsRawSocket for Trc<T> {
-    fn as_raw_socket(&self) -> std::os::fd::BorrowedFd<'_> {
+    fn as_raw_socket(&self) -> std::os::windows::io::RawSocket {
         (**self).as_raw_socket()
     }
 }
 
 #[cfg(target_os = "windows")]
 impl<T: AsRawSocket> AsRawSocket for SharedTrc<T> {
-    fn as_raw_socket(&self) -> std::os::fd::BorrowedFd<'_> {
+    fn as_raw_socket(&self) -> std::os::windows::io::RawSocket {
         (**self).as_raw_socket()
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl<T: AsSocket> AsSocket for Trc<T> {
+    fn as_socket(&self) -> std::os::windows::io::BorrowedSocket<'_> {
+        (**self).as_socket()
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl<T: AsSocket> AsSocket for SharedTrc<T> {
+    fn as_socket(&self) -> std::os::windows::io::BorrowedSocket<'_> {
+        (**self).as_socket()
     }
 }
 
