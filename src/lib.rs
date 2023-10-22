@@ -264,12 +264,14 @@ impl<T: ?Sized> SharedTrc<T> {
     /// let shared = SharedTrc::from_trc(&trc);
     /// ```
     #[inline]
+    #[must_use]
     pub fn from_trc(trc: &Trc<T>) -> Self {
         let prev = sum_value(&unsafe { trc.shared.as_ref() }.atomicref, 1, Acquire);
-        if prev > MAX_REFCOUNT {
-            panic!("Overflow of maximum atomic reference count.");
-        }
-        SharedTrc { data: trc.shared }
+        assert!(
+            prev <= MAX_REFCOUNT,
+            "Overflow of maximum atomic reference count."
+        );
+        return Self { data: trc.shared };
     }
 
     /// Convert a `SharedTrc` to a `Trc`. To prevent memory leaks, this function takes
@@ -286,6 +288,7 @@ impl<T: ?Sized> SharedTrc<T> {
     /// drop(trc);
     /// let trc2 = SharedTrc::to_trc(shared);
     /// ```
+    #[must_use]
     pub fn to_trc(this: Self) -> Trc<T> {
         let tbx = Box::new(1);
         let res = Trc {
@@ -316,8 +319,9 @@ impl<T: ?Sized> SharedTrc<T> {
     /// assert_eq!(*trc, 100);
     /// ```
     #[inline]
+    #[must_use]
     pub fn atomic_count(this: &Self) -> usize {
-        unsafe { this.data.as_ref() }.atomicref.load(Relaxed)
+        return unsafe { this.data.as_ref() }.atomicref.load(Relaxed);
     }
 }
 
@@ -373,10 +377,11 @@ impl<T: ?Sized> Clone for SharedTrc<T> {
     #[inline]
     fn clone(&self) -> Self {
         let prev = sum_value(&unsafe { self.data.as_ref() }.atomicref, 1, AcqRel);
-        if prev > MAX_REFCOUNT {
-            panic!("Overflow of maximum atomic reference count.");
-        }
-        SharedTrc { data: self.data }
+        assert!(
+            prev <= MAX_REFCOUNT,
+            "Overflow of maximum atomic reference count."
+        );
+        return Self { data: self.data };
     }
 }
 
@@ -430,7 +435,7 @@ impl<T: ?Sized> From<&Trc<T>> for SharedTrc<T> {
     /// let shared = SharedTrc::from_trc(&trc);
     /// ```
     fn from(value: &Trc<T>) -> Self {
-        SharedTrc::from_trc(value)
+        return Self::from_trc(value);
     }
 }
 
@@ -448,7 +453,7 @@ impl<T: ?Sized> From<Trc<T>> for SharedTrc<T> {
     /// let shared = SharedTrc::from_trc(&trc);
     /// ```
     fn from(value: Trc<T>) -> Self {
-        SharedTrc::from_trc(&value)
+        return Self::from_trc(&value);
     }
 }
 
@@ -471,8 +476,9 @@ impl<T: ?Sized> SharedTrc<T> {
     /// assert_eq!(SharedTrc::weak_count(&shared), 2);
     /// ```
     #[inline]
+    #[must_use]
     pub fn weak_count(this: &Self) -> usize {
-        unsafe { this.data.as_ref() }.weakcount.load(Relaxed)
+        return unsafe { this.data.as_ref() }.weakcount.load(Relaxed);
     }
 
     /// Checks if the other `SharedTrc` is equal to this one according to their internal pointers.
@@ -489,6 +495,7 @@ impl<T: ?Sized> SharedTrc<T> {
     /// assert!(SharedTrc::ptr_eq(&shared1, &shared2));
     /// ```
     #[inline]
+    #[must_use]
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
         this.data.as_ptr() == other.data.as_ptr()
     }
@@ -504,6 +511,7 @@ impl<T: ?Sized> SharedTrc<T> {
     /// assert_eq!(SharedTrc::as_ptr(&SharedTrc::from_trc(&trc)), Trc::as_ptr(&trc))
     /// ```
     #[inline]
+    #[must_use]
     pub fn as_ptr(this: &Self) -> *const T {
         let sharedptr = NonNull::as_ptr(this.data);
         unsafe { addr_of_mut!((*sharedptr).data) }
@@ -524,6 +532,7 @@ impl<T: ?Sized> SharedTrc<T> {
     ///
     /// unsafe { SharedTrc::from_raw(ptr) };
     /// ```
+    #[must_use]
     pub fn into_raw(this: Self) -> *const T {
         let ptr = Self::as_ptr(&this);
 
@@ -552,9 +561,9 @@ impl<T> SharedTrc<T> {
 
         let sharedbx = Box::new(shareddata);
 
-        SharedTrc {
+        return Self {
             data: NonNull::from(Box::leak(sharedbx)),
-        }
+        };
     }
 
     /// Creates a new uninitialized `SharedTrc`.
@@ -575,6 +584,7 @@ impl<T> SharedTrc<T> {
     /// assert_eq!(*five, 5);
     /// ```
     #[inline]
+    #[must_use]
     pub fn new_uninit() -> SharedTrc<MaybeUninit<T>> {
         let shareddata = SharedTrcInternal {
             atomicref: AtomicUsize::new(1),
@@ -584,9 +594,9 @@ impl<T> SharedTrc<T> {
 
         let sharedbx = Box::new(shareddata);
 
-        SharedTrc {
+        return SharedTrc {
             data: NonNull::from(Box::leak(sharedbx)),
-        }
+        };
     }
 
     /// Creates a new cyclic `SharedTrc` from the provided data. It allows the storage of `Weak` which points the the allocation
@@ -625,12 +635,13 @@ impl<T> SharedTrc<T> {
             ptr::write(ptr::addr_of_mut!((*ptr).data), data);
 
             let prev = sum_value(&init_ptr.as_ref().atomicref, 1, AcqRel);
-            if prev > MAX_REFCOUNT {
-                panic!("Overflow of maximum atomic reference count.");
-            }
-        }
+            assert!(
+                prev <= MAX_REFCOUNT,
+                "Overflow of maximum atomic reference count."
+            )
+        };
 
-        SharedTrc { data: init_ptr }
+        return Self { data: init_ptr };
     }
     /// Converts a `*const T` into `SharedTrc`. The caller must uphold the below safety constraints.
     ///
@@ -678,11 +689,11 @@ impl<T> SharedTrc<T> {
         let layout = Layout::new::<SharedTrcInternal<()>>();
         let n = layout.size();
 
-        let data_ptr = (ptr as *const u8).sub(n) as *mut SharedTrcInternal<T>;
+        let data_ptr = ptr.cast::<u8>().sub(n) as *mut SharedTrcInternal<T>;
 
-        SharedTrc {
+        return Self {
             data: NonNull::new_unchecked(data_ptr),
-        }
+        };
     }
 
     /// Decrements the local reference count of the provided `SharedTrc` associated with the provided pointer.
@@ -707,7 +718,7 @@ impl<T> SharedTrc<T> {
     /// ```
     ///
     pub unsafe fn decrement_local_count(ptr: *const T) {
-        drop(SharedTrc::from_raw(ptr));
+        drop(Self::from_raw(ptr));
     }
 
     /// Increments the local reference count of the provided `SharedTrc` associated with the provided pointer.
@@ -736,7 +747,7 @@ impl<T> SharedTrc<T> {
     /// ```
     ///
     pub unsafe fn increment_local_count(ptr: *const T) {
-        let trc = ManuallyDrop::new(SharedTrc::from_raw(ptr));
+        let trc = ManuallyDrop::new(Self::from_raw(ptr));
         let _: ManuallyDrop<_> = trc.clone();
     }
 }
@@ -761,6 +772,7 @@ impl<T> SharedTrc<[T]> {
     ///
     /// assert_eq!(*values, [1, 2, 3])
     /// ```
+    #[must_use]
     pub fn new_uninit_slice(len: usize) -> SharedTrc<[MaybeUninit<T>]> {
         let value_layout = Layout::array::<T>(len).unwrap();
         let layout = Layout::new::<SharedTrcInternal<()>>()
@@ -769,14 +781,16 @@ impl<T> SharedTrc<[T]> {
             .0
             .pad_to_align();
 
-        let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, len)
+        let res = slice_from_raw_parts_mut(unsafe { alloc(layout) }.cast::<T>(), len)
             as *mut SharedTrcInternal<[MaybeUninit<T>]>;
         unsafe { write(&mut (*res).atomicref, AtomicUsize::new(1)) };
         unsafe { write(&mut (*res).weakcount, AtomicUsize::new(1)) };
 
-        let elems = unsafe { addr_of_mut!((*res).data) } as *mut MaybeUninit<T>;
+        let elems = unsafe { addr_of_mut!((*res).data) }.cast::<std::mem::MaybeUninit<T>>();
         for i in 0..len {
-            unsafe { write(elems.add(i), MaybeUninit::<T>::uninit()) };
+            unsafe {
+                write(elems.add(i), MaybeUninit::<T>::uninit());
+            }
         }
 
         SharedTrc {
@@ -806,6 +820,7 @@ impl<T> SharedTrc<MaybeUninit<T>> {
     ///
     /// assert_eq!(*five, 5);
     /// ```
+    #[must_use]
     pub unsafe fn assume_init(self) -> SharedTrc<T> {
         SharedTrc {
             data: NonNull::new_unchecked(ManuallyDrop::new(self).data.as_ptr().cast()),
@@ -838,10 +853,13 @@ impl<T> SharedTrc<[MaybeUninit<T>]> {
     ///
     /// assert_eq!(*values, [1, 2, 3])
     /// ```
+    #[must_use]
     pub unsafe fn assume_init(self) -> SharedTrc<[T]> {
-        SharedTrc {
-            data: NonNull::new_unchecked(ManuallyDrop::new(self).data.as_ptr() as _),
-        }
+        return SharedTrc {
+            data: NonNull::new_unchecked(
+                ManuallyDrop::new(self).data.as_ptr() as *mut SharedTrcInternal<[T]>
+            ),
+        };
     }
 }
 
@@ -862,7 +880,7 @@ impl<T: ?Sized> Deref for SharedTrc<T> {
     /// ```
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &unsafe { self.data.as_ref() }.data
+        return &unsafe { self.data.as_ref() }.data;
     }
 }
 
@@ -876,7 +894,7 @@ fn sum_value(value: &AtomicUsize, offset: usize, ordering: Ordering) -> usize {
     }
 
     #[cfg(not(immortals))]
-    value.fetch_add(offset, ordering)
+    return value.fetch_add(offset, ordering);
 }
 
 #[inline(always)]
@@ -889,7 +907,7 @@ fn sub_value(value: &AtomicUsize, offset: usize, ordering: Ordering) -> usize {
     }
 
     #[cfg(not(immortals))]
-    value.fetch_sub(offset, ordering)
+    return value.fetch_sub(offset, ordering);
 }
 
 impl<T> Trc<T> {
@@ -914,10 +932,10 @@ impl<T> Trc<T> {
 
         let threadbx = Box::new(1);
 
-        Trc {
+        return Self {
             threadref: NonNull::from(Box::leak(threadbx)),
             shared: NonNull::from(Box::leak(sharedbx)),
-        }
+        };
     }
 
     /// Creates a new uninitialized `Trc`.
@@ -935,6 +953,7 @@ impl<T> Trc<T> {
     /// assert_eq!(*five, 5);
     /// ```
     #[inline]
+    #[must_use]
     pub fn new_uninit() -> Trc<MaybeUninit<T>> {
         let shareddata = SharedTrcInternal {
             atomicref: AtomicUsize::new(1),
@@ -946,10 +965,10 @@ impl<T> Trc<T> {
 
         let threadbx = Box::new(1);
 
-        Trc {
+        return Trc {
             threadref: NonNull::from(Box::leak(threadbx)),
             shared: NonNull::from(Box::leak(sharedbx)),
-        }
+        };
     }
 
     /// Creates a new cyclic `Trc` from the provided data. It allows the storage of `Weak` which points the the allocation
@@ -988,23 +1007,24 @@ impl<T> Trc<T> {
             ptr::write(ptr::addr_of_mut!((*ptr).data), data);
 
             let prev = sum_value(&init_ptr.as_ref().atomicref, 1, AcqRel);
-            if prev > MAX_REFCOUNT {
-                panic!("Overflow of maximum atomic reference count.");
-            }
-        }
+            assert!(
+                prev <= MAX_REFCOUNT,
+                "Overflow of maximum atomic reference count."
+            )
+        };
 
         let tbx = Box::new(1);
 
-        Trc {
+        return Self {
             threadref: NonNull::from(Box::leak(tbx)),
             shared: init_ptr,
-        }
+        };
     }
 
     /// Creates a new pinned `Trc`. If `T` does not implement [`Unpin`], then the data will be pinned in memory and unable to be moved.
     #[inline]
-    pub fn pin(data: T) -> Pin<Trc<T>> {
-        unsafe { Pin::new_unchecked(Trc::new(data)) }
+    pub fn pin(data: T) -> Pin<Self> {
+        unsafe { return Pin::new_unchecked(Self::new(data)) }
     }
 
     /// Returns the inner value if the `Trc` has exactly one atomic and local reference.
@@ -1085,6 +1105,7 @@ impl<T> Trc<T> {
     /// ```
     ///
     #[inline]
+    #[must_use]
     pub fn into_inner(this: Self) -> Option<T> {
         let this = ManuallyDrop::new(this);
 
@@ -1122,6 +1143,7 @@ impl<T> Trc<[T]> {
     ///
     /// assert_eq!(*five, 5);
     /// ```
+    #[must_use]
     pub fn new_uninit_slice(len: usize) -> Trc<[MaybeUninit<T>]> {
         let value_layout = Layout::array::<T>(len).unwrap();
         let layout = Layout::new::<SharedTrcInternal<()>>()
@@ -1130,21 +1152,23 @@ impl<T> Trc<[T]> {
             .0
             .pad_to_align();
 
-        let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, len)
+        let res = slice_from_raw_parts_mut(unsafe { alloc(layout) }.cast::<T>(), len)
             as *mut SharedTrcInternal<[MaybeUninit<T>]>;
         unsafe { write(&mut (*res).atomicref, AtomicUsize::new(1)) };
         unsafe { write(&mut (*res).weakcount, AtomicUsize::new(1)) };
 
-        let elems = unsafe { addr_of_mut!((*res).data) } as *mut MaybeUninit<T>;
+        let elems = unsafe { addr_of_mut!((*res).data) }.cast::<std::mem::MaybeUninit<T>>();
         for i in 0..len {
-            unsafe { write(elems.add(i), MaybeUninit::<T>::uninit()) };
+            unsafe {
+                write(elems.add(i), MaybeUninit::<T>::uninit());
+            }
         }
         let tbx = Box::new(1);
 
-        Trc {
+        return Trc {
             threadref: NonNull::from(Box::leak(tbx)),
             shared: unsafe { NonNull::new_unchecked(res) },
-        }
+        };
     }
 }
 
@@ -1167,6 +1191,7 @@ impl<T> Trc<MaybeUninit<T>> {
     ///
     /// assert_eq!(*five, 5);
     /// ```
+    #[must_use]
     pub unsafe fn assume_init(self) -> Trc<T> {
         let threadref = self.threadref;
         Trc {
@@ -1199,12 +1224,15 @@ impl<T> Trc<[MaybeUninit<T>]> {
     ///
     /// assert_eq!(*values, [1, 2, 3])
     /// ```
+    #[must_use]
     pub unsafe fn assume_init(self) -> Trc<[T]> {
         let threadref = self.threadref;
-        Trc {
-            shared: NonNull::new_unchecked(ManuallyDrop::new(self).shared.as_ptr() as _),
+        return Trc {
+            shared: NonNull::new_unchecked(
+                ManuallyDrop::new(self).shared.as_ptr() as *mut SharedTrcInternal<[T]>
+            ),
             threadref,
-        }
+        };
     }
 }
 
@@ -1219,8 +1247,9 @@ impl<T: ?Sized> Trc<T> {
     /// assert!(Trc::local_count(&trc) == 1)
     /// ```
     #[inline]
+    #[must_use]
     pub fn local_count(this: &Self) -> usize {
-        *unsafe { this.threadref.as_ref() }
+        return *unsafe { this.threadref.as_ref() };
     }
 
     /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Trc`.
@@ -1242,8 +1271,9 @@ impl<T: ?Sized> Trc<T> {
     /// assert_eq!(*trc, 100);
     /// ```
     #[inline]
+    #[must_use]
     pub fn atomic_count(this: &Self) -> usize {
-        unsafe { this.shared.as_ref() }.atomicref.load(Relaxed)
+        return unsafe { this.shared.as_ref() }.atomicref.load(Relaxed);
     }
 
     /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of `Trc`.
@@ -1262,8 +1292,9 @@ impl<T: ?Sized> Trc<T> {
     /// assert_eq!(Trc::weak_count(&new_trc), 2);
     /// ```
     #[inline]
+    #[must_use]
     pub fn weak_count(this: &Self) -> usize {
-        unsafe { this.shared.as_ref() }.weakcount.load(Relaxed)
+        return unsafe { this.shared.as_ref() }.weakcount.load(Relaxed);
     }
 
     /// Checks if the other `Trc` is equal to this one according to their internal pointers.
@@ -1277,6 +1308,7 @@ impl<T: ?Sized> Trc<T> {
     /// assert!(Trc::ptr_eq(&trc1, &trc2));
     /// ```
     #[inline]
+    #[must_use]
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
         this.shared.as_ptr() == other.shared.as_ptr()
     }
@@ -1291,6 +1323,7 @@ impl<T: ?Sized> Trc<T> {
     /// println!("{}", Trc::as_ptr(&trc) as usize)
     /// ```
     #[inline]
+    #[must_use]
     pub fn as_ptr(this: &Self) -> *const T {
         let sharedptr = NonNull::as_ptr(this.shared);
         unsafe { addr_of_mut!((*sharedptr).data) }
@@ -1355,8 +1388,9 @@ impl<T: Clone> Trc<T> {
     /// assert!(std::ptr::eq(ptr, inner.as_ptr()));
     /// ```
     #[inline]
+    #[must_use]
     pub fn unwrap_or_clone(this: Self) -> T {
-        Trc::try_unwrap(this).unwrap_or_else(|trc| (*trc).clone())
+        Self::try_unwrap(this).unwrap_or_else(|trc| (*trc).clone())
     }
 }
 
@@ -1406,11 +1440,13 @@ impl<T: ?Sized> Trc<T> {
     /// let weak = Trc::downgrade(&trc);
     /// ```
     #[inline]
-    pub fn downgrade(trc: &Trc<T>) -> Weak<T> {
+    #[must_use]
+    pub fn downgrade(trc: &Self) -> Weak<T> {
         let prev = sum_value(&unsafe { trc.shared.as_ref() }.weakcount, 1, Acquire);
-        if prev > MAX_REFCOUNT {
-            panic!("Overflow of maximum weak reference count.");
-        }
+        assert!(
+            prev <= MAX_REFCOUNT,
+            "Overflow of maximum weak reference count."
+        );
         Weak { data: trc.shared }
     }
 }
@@ -1431,7 +1467,7 @@ impl<T: ?Sized> Deref for Trc<T> {
     /// ```
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &unsafe { self.shared.as_ref() }.data
+        return &unsafe { self.shared.as_ref() }.data;
     }
 }
 
@@ -1494,44 +1530,45 @@ impl<T: ?Sized> Clone for Trc<T> {
         }
 
         unsafe { *self.threadref.as_ptr() += 1 };
-        if unsafe { *self.threadref.as_ptr() } > MAX_REFCOUNT {
-            panic!("Overflow of maximum atomic reference count.");
-        }
+        assert!(
+            unsafe { *self.threadref.as_ptr() } <= MAX_REFCOUNT,
+            "Overflow of maximum atomic reference count."
+        );
 
-        Trc {
+        return Self {
             shared: self.shared,
             threadref: self.threadref,
-        }
+        };
     }
 }
 
 impl<T: ?Sized> AsRef<T> for Trc<T> {
     fn as_ref(&self) -> &T {
-        Trc::deref(self)
+        return Self::deref(self);
     }
 }
 
 impl<T: ?Sized> AsRef<T> for SharedTrc<T> {
     fn as_ref(&self) -> &T {
-        SharedTrc::deref(self)
+        return Self::deref(self);
     }
 }
 
 impl<T: ?Sized> Borrow<T> for Trc<T> {
     fn borrow(&self) -> &T {
-        self.as_ref()
+        return self.as_ref();
     }
 }
 
 impl<T: ?Sized> Borrow<T> for SharedTrc<T> {
     fn borrow(&self) -> &T {
-        self.as_ref()
+        return self.as_ref();
     }
 }
 
 impl<T: ?Sized + Default> Default for Trc<T> {
     fn default() -> Self {
-        Trc::new(Default::default())
+        return Self::new(Default::default());
     }
 }
 
@@ -1543,25 +1580,25 @@ impl<T: ?Sized + Default> Default for SharedTrc<T> {
 
 impl<T: Display> Display for Trc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt((*self).deref(), f)
+        return fmt::Display::fmt(&*(*self), f);
     }
 }
 
 impl<T: Display> Display for SharedTrc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt((*self).deref(), f)
+        return fmt::Display::fmt(&*(*self), f);
     }
 }
 
 impl<T: Debug> Debug for Trc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt((*self).deref(), f)
+        return fmt::Debug::fmt(&*(*self), f);
     }
 }
 
 impl<T: Debug> Debug for SharedTrc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt((*self).deref(), f)
+        return fmt::Debug::fmt(&*(*self), f);
     }
 }
 
@@ -1623,7 +1660,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// ```
     #[inline]
     fn ge(&self, other: &Self) -> bool {
-        self.deref().ge(other.deref())
+        return self.deref().ge(&**other);
     }
 
     /// "Less than or equal to" comparison for two `Trc`s.
@@ -1640,7 +1677,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// ```
     #[inline]
     fn le(&self, other: &Self) -> bool {
-        self.deref().ge(other.deref())
+        return self.deref().ge(&**other);
     }
 
     /// "Greater than" comparison for two `Trc`s.
@@ -1657,7 +1694,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// ```
     #[inline]
     fn gt(&self, other: &Self) -> bool {
-        self.deref().gt(other.deref())
+        return self.deref().gt(&**other);
     }
 
     /// "Less than" comparison for two `Trc`s.
@@ -1674,7 +1711,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// ```
     #[inline]
     fn lt(&self, other: &Self) -> bool {
-        self.deref().lt(other.deref())
+        return self.deref().lt(&**other);
     }
 
     /// Partial comparison for two `Trc`s.
@@ -1692,7 +1729,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// ```
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        self.deref().partial_cmp(other.deref())
+        return self.deref().partial_cmp(&**other);
     }
 }
 
@@ -1712,7 +1749,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
     /// ```
     #[inline]
     fn ge(&self, other: &Self) -> bool {
-        self.deref().ge(other.deref())
+        return self.deref().ge(&**other);
     }
 
     /// "Less than or equal to" comparison for two `SharedTrc`s.
@@ -1730,7 +1767,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
     /// ```
     #[inline]
     fn le(&self, other: &Self) -> bool {
-        self.deref().ge(other.deref())
+        return self.deref().ge(&**other);
     }
 
     /// "Greater than" comparison for two `SharedTrc`s.
@@ -1748,7 +1785,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
     /// ```
     #[inline]
     fn gt(&self, other: &Self) -> bool {
-        self.deref().gt(other.deref())
+        return self.deref().gt(&**other);
     }
 
     /// "Less than" comparison for two `SharedTrc`s.
@@ -1766,7 +1803,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
     /// ```
     #[inline]
     fn lt(&self, other: &Self) -> bool {
-        self.deref().lt(other.deref())
+        return self.deref().lt(&**other);
     }
 
     /// Partial comparison for two `SharedTrc`s.
@@ -1785,7 +1822,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
     /// ```
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        self.deref().partial_cmp(other.deref())
+        return self.deref().partial_cmp(&**other);
     }
 }
 
@@ -1803,7 +1840,7 @@ impl<T: Ord> Ord for Trc<T> {
     /// ```
     #[inline]
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.deref().cmp(other.deref())
+        return self.deref().cmp(&**other);
     }
 }
 
@@ -1822,7 +1859,7 @@ impl<T: Ord> Ord for SharedTrc<T> {
     /// ```
     #[inline]
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.deref().cmp(other.deref())
+        return self.deref().cmp(&**other);
     }
 }
 
@@ -1845,7 +1882,7 @@ impl<T: PartialEq> PartialEq for Trc<T> {
     /// ```
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.deref().eq(other.deref())
+        return self.deref().eq(&**other);
     }
 
     /// Inequality by value comparison for two `Trc`s, even if the data is in different allocoations.
@@ -1863,7 +1900,7 @@ impl<T: PartialEq> PartialEq for Trc<T> {
     #[allow(clippy::partialeq_ne_impl)]
     #[inline]
     fn ne(&self, other: &Self) -> bool {
-        self.deref().ne(other.deref())
+        return self.deref().ne(&**other);
     }
 }
 
@@ -1883,7 +1920,7 @@ impl<T: PartialEq> PartialEq for SharedTrc<T> {
     /// ```
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.deref().eq(other.deref())
+        return self.deref().eq(&**other);
     }
 
     /// Inequality by value comparison for two `SharedTrc`s, even if the data is in different allocoations.
@@ -1902,21 +1939,21 @@ impl<T: PartialEq> PartialEq for SharedTrc<T> {
     #[allow(clippy::partialeq_ne_impl)]
     #[inline]
     fn ne(&self, other: &Self) -> bool {
-        self.deref().ne(other.deref())
+        return self.deref().ne(&**other);
     }
 }
 
 #[cfg(not(target_os = "windows"))]
 impl<T: AsFd> AsFd for Trc<T> {
     fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
-        (**self).as_fd()
+        return (**self).as_fd();
     }
 }
 
 #[cfg(not(target_os = "windows"))]
 impl<T: AsFd> AsFd for SharedTrc<T> {
     fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
-        (**self).as_fd()
+        return (**self).as_fd();
     }
 }
 
@@ -1993,26 +2030,26 @@ impl<T: AsSocket> AsSocket for SharedTrc<T> {
 #[allow(deprecated)]
 impl<T: Error> Error for Trc<T> {
     fn cause(&self) -> Option<&dyn Error> {
-        (**self).cause()
+        return (**self).cause();
     }
     fn description(&self) -> &str {
-        (**self).description()
+        return (**self).description();
     }
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        (**self).source()
+        return (**self).source();
     }
 }
 
 #[allow(deprecated)]
 impl<T: Error> Error for SharedTrc<T> {
     fn cause(&self) -> Option<&dyn Error> {
-        (**self).cause()
+        return (**self).cause();
     }
     fn description(&self) -> &str {
-        (**self).description()
+        return (**self).description();
     }
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        (**self).source()
+        return (**self).source();
     }
 }
 
@@ -2088,14 +2125,16 @@ fn create_from_iterator_exact<T>(
         .0
         .pad_to_align();
 
-    let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, iterator.len())
+    let res = slice_from_raw_parts_mut(unsafe { alloc(layout) }.cast::<T>(), iterator.len())
         as *mut SharedTrcInternal<[T]>;
     unsafe { write(&mut (*res).atomicref, AtomicUsize::new(1)) };
     unsafe { write(&mut (*res).weakcount, AtomicUsize::new(1)) };
 
-    let elems = unsafe { addr_of_mut!((*res).data) } as *mut T;
+    let elems = unsafe { addr_of_mut!((*res).data) }.cast::<T>();
     for (n, i) in iterator.enumerate() {
-        unsafe { write(elems.add(n), i) };
+        unsafe {
+            write(elems.add(n), i);
+        }
     }
     res
 }
@@ -2109,10 +2148,10 @@ impl<T: Clone + ?Sized> TrcFromIter<T> for Trc<[T]> {
         let shared = create_from_iterator_exact(slice);
         let tbx = Box::new(1);
 
-        Trc {
+        return Self {
             threadref: NonNull::from(Box::leak(tbx)),
             shared: unsafe { NonNull::new_unchecked(shared) },
-        }
+        };
     }
 }
 
@@ -2128,8 +2167,8 @@ impl<T: Clone + ?Sized> From<&[T]> for Trc<[T]> {
     /// let trc = Trc::<[i32]>::from(slice);
     /// assert_eq!(&*trc, slice);
     /// ```
-    fn from(value: &[T]) -> Trc<[T]> {
-        <Self as TrcFromIter<T>>::from_iter(value.iter().cloned())
+    fn from(value: &[T]) -> Self {
+        return <Self as TrcFromIter<T>>::from_iter(value.iter().cloned());
     }
 }
 
@@ -2145,7 +2184,7 @@ impl<T: Clone + ?Sized> FromIterator<T> for Trc<[T]> {
     /// assert_eq!(&*trc, vec![1,2,3]);
     /// ```
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self::from(&iter.into_iter().collect::<Vec<_>>()[..])
+        return Self::from((&*iter.into_iter().collect::<Vec<_>>()));
     }
 }
 
@@ -2183,7 +2222,9 @@ impl<T: ?Sized> Drop for Weak<T> {
         fence(Acquire);
 
         let layout = Layout::for_value(unsafe { &*self.data.as_ptr() });
-        unsafe { std::alloc::dealloc(self.data.as_ptr().cast(), layout) };
+        unsafe {
+            std::alloc::dealloc(self.data.as_ptr().cast(), layout);
+        }
     }
 }
 
@@ -2202,6 +2243,7 @@ impl<T: ?Sized> Weak<T> {
     /// assert_eq!(*new_trc, 100i32);
     /// ```
     #[inline]
+    #[must_use]
     pub fn upgrade(&self) -> Option<Trc<T>> {
         #[cfg(immortals)]
         if value.load(Acquire) == usize::MAX {
@@ -2230,10 +2272,10 @@ impl<T: ?Sized> Weak<T> {
             .ok()
             .map(|_| {
                 let tbx = Box::new(1);
-                Trc {
+                return Trc {
                     threadref: NonNull::from(Box::leak(tbx)),
                     shared: self.data,
-                }
+                };
             })
     }
 
@@ -2249,6 +2291,7 @@ impl<T: ?Sized> Weak<T> {
     /// println!("{}", Trc::as_ptr(&trc) as usize)
     /// ```
     #[inline]
+    #[must_use]
     pub fn as_ptr(this: &Self) -> *const T {
         let sharedptr = NonNull::as_ptr(this.data);
         unsafe { addr_of_mut!((*sharedptr).data) }
@@ -2270,6 +2313,7 @@ impl<T: ?Sized> Weak<T> {
     ///
     /// unsafe { Weak::from_raw(ptr) };
     /// ```
+    #[must_use]
     pub fn into_raw(this: Self) -> *const T {
         let ptr = Self::as_ptr(&this);
 
@@ -2322,11 +2366,11 @@ impl<T> Weak<T> {
         let layout = Layout::new::<SharedTrcInternal<()>>();
         let n = layout.size();
 
-        let data_ptr = (ptr as *const u8).sub(n) as *mut SharedTrcInternal<T>;
+        let data_ptr = ptr.cast::<u8>().sub(n) as *mut SharedTrcInternal<T>;
 
-        Weak {
+        return Self {
             data: NonNull::new_unchecked(data_ptr),
-        }
+        };
     }
 
     /// Create a new, uninitialized `Weak`. Calling [`Weak::upgrade`] on this will always return `None.
@@ -2340,6 +2384,7 @@ impl<T> Weak<T> {
     ///
     /// assert!(Weak::upgrade(&weak).is_none());
     /// ```
+    #[must_use]
     pub fn new() -> Weak<MaybeUninit<T>> {
         let data = MaybeUninit::<T>::uninit();
 
@@ -2351,9 +2396,9 @@ impl<T> Weak<T> {
 
         let sbx = Box::new(shareddata);
 
-        Weak {
+        return Weak {
             data: NonNull::from(Box::leak(sbx)),
-        }
+        };
     }
 
     /// Return the atomic reference count of the object. This is how many threads are using the data referenced by this `Weak`.
@@ -2378,8 +2423,9 @@ impl<T> Weak<T> {
     /// assert_eq!(*trc, 100);
     /// ```
     #[inline]
+    #[must_use]
     pub fn atomic_count(this: &Self) -> usize {
-        unsafe { this.data.as_ref() }.atomicref.load(Relaxed)
+        return unsafe { this.data.as_ref() }.atomicref.load(Relaxed);
     }
 
     /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of the `Weak`.
@@ -2400,8 +2446,9 @@ impl<T> Weak<T> {
     /// assert_eq!(SharedTrc::weak_count(&shared), 2);
     /// ```
     #[inline]
+    #[must_use]
     pub fn weak_count(this: &Self) -> usize {
-        unsafe { this.data.as_ref() }.weakcount.load(Relaxed)
+        return unsafe { this.data.as_ref() }.weakcount.load(Relaxed);
     }
 }
 
@@ -2424,10 +2471,11 @@ impl<T: ?Sized> Clone for Weak<T> {
 
         //If an absurd number of threads are created, and then they are aborted before this, UB can
         //occur if the refcount wraps around.
-        if prev > MAX_REFCOUNT {
-            panic!("Overflow of maximum weak reference count.");
-        }
+        assert!(
+            prev <= MAX_REFCOUNT,
+            "Overflow of maximum weak reference count."
+        );
 
-        Weak { data: self.data }
+        Self { data: self.data }
     }
 }

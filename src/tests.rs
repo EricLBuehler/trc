@@ -225,8 +225,10 @@ fn test_dyn2() {
 fn test_ub_weak_as_ptr() {
     //rust-lang/rust#80365
     let ptr = Weak::into_raw(Weak::<MaybeUninit<usize>>::new());
-    println!("{:?}", ptr);
-    unsafe { Weak::from_raw(ptr) };
+    println!("{ptr:?}");
+    unsafe {
+        Weak::from_raw(ptr);
+    }
 }
 
 #[cfg(feature = "dyn_unstable")]
