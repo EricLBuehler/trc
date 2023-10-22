@@ -21,11 +21,6 @@
 //! However, `Trc` provides `dyn_unstable` trait which enables the above traits for
 //! `Trc` and `SharedTrc` and must be used with nightly Rust (`cargo +nightly ...`).
 
-#![deny(clippy::all)]
-#![warn(clippy::pedantic)]
-#![warn(clippy::restriction)]
-#![warn(clippy::nursery)]
-#![warn(clippy::cargo)]
 #![cfg_attr(feature = "dyn_unstable", feature(unsize))]
 #![cfg_attr(feature = "dyn_unstable", feature(coerce_unsized))]
 #![cfg_attr(feature = "dyn_unstable", feature(receiver_trait))]
@@ -271,7 +266,7 @@ impl<T: ?Sized> SharedTrc<T> {
             prev <= MAX_REFCOUNT,
             "Overflow of maximum atomic reference count."
         );
-        return Self { data: trc.shared };
+        Self { data: trc.shared }
     }
 
     /// Convert a `SharedTrc` to a `Trc`. To prevent memory leaks, this function takes
@@ -381,7 +376,7 @@ impl<T: ?Sized> Clone for SharedTrc<T> {
             prev <= MAX_REFCOUNT,
             "Overflow of maximum atomic reference count."
         );
-        return Self { data: self.data };
+        Self { data: self.data }
     }
 }
 
@@ -435,7 +430,7 @@ impl<T: ?Sized> From<&Trc<T>> for SharedTrc<T> {
     /// let shared = SharedTrc::from_trc(&trc);
     /// ```
     fn from(value: &Trc<T>) -> Self {
-        return Self::from_trc(value);
+        Self::from_trc(value)
     }
 }
 
@@ -453,7 +448,7 @@ impl<T: ?Sized> From<Trc<T>> for SharedTrc<T> {
     /// let shared = SharedTrc::from_trc(&trc);
     /// ```
     fn from(value: Trc<T>) -> Self {
-        return Self::from_trc(&value);
+        Self::from_trc(&value)
     }
 }
 
@@ -638,10 +633,10 @@ impl<T> SharedTrc<T> {
             assert!(
                 prev <= MAX_REFCOUNT,
                 "Overflow of maximum atomic reference count."
-            )
-        };
+            );
+        }
 
-        return Self { data: init_ptr };
+        Self { data: init_ptr }
     }
     /// Converts a `*const T` into `SharedTrc`. The caller must uphold the below safety constraints.
     ///
@@ -691,9 +686,9 @@ impl<T> SharedTrc<T> {
 
         let data_ptr = ptr.cast::<u8>().sub(n) as *mut SharedTrcInternal<T>;
 
-        return Self {
+        Self {
             data: NonNull::new_unchecked(data_ptr),
-        };
+        }
     }
 
     /// Decrements the local reference count of the provided `SharedTrc` associated with the provided pointer.
@@ -855,11 +850,11 @@ impl<T> SharedTrc<[MaybeUninit<T>]> {
     /// ```
     #[must_use]
     pub unsafe fn assume_init(self) -> SharedTrc<[T]> {
-        return SharedTrc {
+        SharedTrc {
             data: NonNull::new_unchecked(
                 ManuallyDrop::new(self).data.as_ptr() as *mut SharedTrcInternal<[T]>
             ),
-        };
+        }
     }
 }
 
@@ -1024,7 +1019,7 @@ impl<T> Trc<T> {
     /// Creates a new pinned `Trc`. If `T` does not implement [`Unpin`], then the data will be pinned in memory and unable to be moved.
     #[inline]
     pub fn pin(data: T) -> Pin<Self> {
-        unsafe { return Pin::new_unchecked(Self::new(data)) }
+        unsafe { Pin::new_unchecked(Self::new(data)) }
     }
 
     /// Returns the inner value if the `Trc` has exactly one atomic and local reference.
@@ -1227,12 +1222,12 @@ impl<T> Trc<[MaybeUninit<T>]> {
     #[must_use]
     pub unsafe fn assume_init(self) -> Trc<[T]> {
         let threadref = self.threadref;
-        return Trc {
+        Trc {
             shared: NonNull::new_unchecked(
                 ManuallyDrop::new(self).shared.as_ptr() as *mut SharedTrcInternal<[T]>
             ),
             threadref,
-        };
+        }
     }
 }
 
@@ -1535,10 +1530,10 @@ impl<T: ?Sized> Clone for Trc<T> {
             "Overflow of maximum atomic reference count."
         );
 
-        return Self {
+        Self {
             shared: self.shared,
             threadref: self.threadref,
-        };
+        }
     }
 }
 
@@ -1568,7 +1563,7 @@ impl<T: ?Sized> Borrow<T> for SharedTrc<T> {
 
 impl<T: ?Sized + Default> Default for Trc<T> {
     fn default() -> Self {
-        return Self::new(Default::default());
+        Self::new(Default::default())
     }
 }
 
@@ -1580,25 +1575,25 @@ impl<T: ?Sized + Default> Default for SharedTrc<T> {
 
 impl<T: Display> Display for Trc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return fmt::Display::fmt(&*(*self), f);
+        fmt::Display::fmt(&*(*self), f)
     }
 }
 
 impl<T: Display> Display for SharedTrc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return fmt::Display::fmt(&*(*self), f);
+        fmt::Display::fmt(&*(*self), f)
     }
 }
 
 impl<T: Debug> Debug for Trc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return fmt::Debug::fmt(&*(*self), f);
+        fmt::Debug::fmt(&*(*self), f)
     }
 }
 
 impl<T: Debug> Debug for SharedTrc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return fmt::Debug::fmt(&*(*self), f);
+        fmt::Debug::fmt(&*(*self), f)
     }
 }
 
@@ -2184,7 +2179,7 @@ impl<T: Clone + ?Sized> FromIterator<T> for Trc<[T]> {
     /// assert_eq!(&*trc, vec![1,2,3]);
     /// ```
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        return Self::from((&*iter.into_iter().collect::<Vec<_>>()));
+        Self::from(&*iter.into_iter().collect::<Vec<_>>())
     }
 }
 
@@ -2368,9 +2363,9 @@ impl<T> Weak<T> {
 
         let data_ptr = ptr.cast::<u8>().sub(n) as *mut SharedTrcInternal<T>;
 
-        return Self {
+        Self {
             data: NonNull::new_unchecked(data_ptr),
-        };
+        }
     }
 
     /// Create a new, uninitialized `Weak`. Calling [`Weak::upgrade`] on this will always return `None.
