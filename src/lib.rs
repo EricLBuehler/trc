@@ -922,7 +922,7 @@ impl<T> Trc<T> {
     #[cfg(immortal)]
     /// Create an immortal Trc. After this method call, no writes to any reference counts (local, shared, weak) will occur with the exception
     /// of [`Weak::upgrade`]. Once an immortal object is created, no reference counts are tracked and so it is unsafe to convert to a mortal
-    /// Trc after ths method call.
+    /// Trc after this method call.
     pub fn create_immortal(self) -> Self {
         unsafe { self.shared.as_ref() }
             .atomicref
