@@ -965,7 +965,6 @@ impl<T> Trc<T> {
                 drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
 
                 core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
-                unsafe { core::ptr::drop_in_place(addr_of_mut!((*this.shared.as_ptr()).data)) };
 
                 // Drop & free shared, effectively like the weak dropping.
                 let layout = Layout::for_value(unsafe { &*this.shared.as_ptr() });
