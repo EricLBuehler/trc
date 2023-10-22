@@ -919,6 +919,10 @@ impl<T> Trc<T> {
         Some(elem)
     }
 
+    #[cfg(immortal)]
+    /// Create an immortal Trc. After this method call, no writes to any reference counts (local, shared, weak) will occur with the exception
+    /// of [`Weak::upgrade`]. Once an immortal object is created, no reference counts are tracked and so it is unsafe to convert to a mortal
+    /// Trc after ths method call.
     pub fn create_immortal(self) -> Self {
         unsafe { self.shared.as_ref() }
             .atomicref
@@ -927,6 +931,34 @@ impl<T> Trc<T> {
             .weakcount
             .store(usize::MAX, core::sync::atomic::Ordering::SeqCst);
         self
+    }
+
+    #[cfg(immortal)]
+    /// Drop an immortal Trc. This is a highly dangerous function as any other references being dropped after it is called
+    /// causes immediate UB.
+    ///
+    /// # Safety
+    /// - All references to the data held by this Trc (other Trc, SharedTrc, or Weak objects) must have std::mem:forget called
+    ///
+    /// # Panics
+    /// If this Trc is not immortal (it did not come from [`Trc::create_immortal`]).
+    pub unsafe fn drop_immortal(self) {
+        assert!(
+            unsafe { self.shared.as_ref() }
+                .atomicref
+                .load(core::sync::atomic::Ordering::Acquire)
+                == usize::MAX
+        );
+        drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
+
+        core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+        unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
+
+        //Drop & free shared
+        let layout = Layout::for_value(unsafe { &*self.shared.as_ptr() });
+        unsafe { std::alloc::dealloc(self.shared.as_ptr().cast(), layout) };
+
+        std::mem::forget(self);
     }
 }
 
@@ -1343,6 +1375,15 @@ impl<T: ?Sized> Clone for Trc<T> {
     /// ```
     #[inline(always)]
     fn clone(&self) -> Self {
+        #[cfg(immortals)]
+        if value.load(core::sync::atomic::Ordering::Acquire) == usize::MAX {
+            //Is immortal
+            return Trc {
+                shared: self.shared,
+                threadref: self.threadref,
+            };
+        }
+
         unsafe { *self.threadref.as_ptr() += 1 };
         if unsafe { *self.threadref.as_ptr() } > MAX_REFCOUNT {
             panic!("Overflow of maximum atomic reference count.");
