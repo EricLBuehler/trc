@@ -2047,7 +2047,7 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for SharedTrc<T> {
     where
         D: ::serde::de::Deserializer<'de>,
     {
-        T::deserialize(deserializer).map(|x| SharedTrc::from_trc(&Trc::new(x)))
+        T::deserialize(deserializer).map(SharedTrc::new)
     }
 }
 
