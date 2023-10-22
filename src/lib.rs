@@ -897,54 +897,6 @@ impl<T> Trc<T> {
 
         Some(elem)
     }
-
-    /// Convert to a [`Box`] if there are no other `Trc`, [`SharedTrc`] or [`Weak`] pointers to the same allocation.
-    /// Otherwise, return [`None`] because it would be unsafe to move a shared value.
-    ///
-    /// # Examples
-    /// ```
-    /// use trc::Trc;
-    ///
-    /// let mut trc = Trc::new(100);
-    /// let boxed = Trc::to_box(trc).unwrap();
-    /// assert_eq!(*boxed, 100);
-    /// ```
-    #[inline]
-    pub fn to_box(this: Self) -> Option<Box<T>> {
-        //Acquire the weakcount if it is == 1
-        if unsafe { this.shared.as_ref() }
-            .weakcount
-            .compare_exchange(1, usize::MAX, Acquire, Relaxed)
-            .is_ok()
-        {
-            //Acquire the atomicref
-            let unique = unsafe { this.shared.as_ref() }.atomicref.load(Acquire) == 1;
-
-            //Synchronize with the previous Acquire
-            unsafe { this.shared.as_ref() }.weakcount.store(1, Release);
-
-            if unique && *unsafe { this.threadref.as_ref() } == 1 {
-                let SharedTrcInternal { data, .. } = unsafe { ptr::read(this.shared.as_ptr()) }; //Unsafety is OK as we have the only ref now
-
-                // Dropping
-                drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
-
-                fence(Acquire);
-
-                // Drop & free shared, effectively like the weak dropping.
-                let layout = Layout::for_value(unsafe { &*this.shared.as_ptr() });
-                unsafe { std::alloc::dealloc(this.shared.as_ptr().cast(), layout) };
-
-                std::mem::forget(this);
-
-                Some(Box::new(data))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
 }
 
 impl<T> Trc<[T]> {
