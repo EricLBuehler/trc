@@ -921,7 +921,10 @@ impl<T> Trc<T> {
 
     #[cfg(immortal)]
     /// Create an immortal Trc. After this method call, no writes to any reference counts (local, shared, weak) will occur with the exception
-    /// of [`Weak::upgrade`]. Once an immortal object is created, no reference counts are tracked and so it is unsafe to convert to a mortal
+    /// of [`Weak::upgrade`]. This also means that any [`Drop`] invocations are ignored. To drop, see [`Trc::drop_immortal`]. It is imperative
+    /// to call this function to prevent a memory leak.
+    ///
+    /// Once an immortal object is created, no reference counts are tracked and so it is unsafe to convert to a mortal
     /// Trc after this method call.
     pub fn create_immortal(self) -> Self {
         unsafe { self.shared.as_ref() }
@@ -954,7 +957,7 @@ impl<T> Trc<T> {
         core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
         unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
 
-        //Drop & free shared
+        //Drop & free shared, effectively like the weak dropping.
         let layout = Layout::for_value(unsafe { &*self.shared.as_ptr() });
         unsafe { std::alloc::dealloc(self.shared.as_ptr().cast(), layout) };
 
