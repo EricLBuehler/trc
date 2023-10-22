@@ -65,6 +65,11 @@ use std::os::windows::io::{AsHandle, AsRawHandle, AsRawSocket, AsSocket};
 #[cfg(feature = "dyn_unstable")]
 use std::any::Any;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "stable_deref_trait")]
+use stable_deref_trait::{CloneStableDeref, StableDeref};
+
 const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 
 #[repr(C)]
@@ -528,6 +533,105 @@ impl<T: ?Sized> SharedTrc<T> {
 }
 
 impl<T> SharedTrc<T> {
+    /// Creates a new `SharedTrc` from the provided data.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::SharedTrc;
+    ///
+    /// let trc = SharedTrc::new(100);
+    /// assert_eq!(*trc, 100);
+    /// ```
+    #[inline]
+    pub fn new(value: T) -> Self {
+        let shareddata = SharedTrcInternal {
+            atomicref: AtomicUsize::new(1),
+            weakcount: AtomicUsize::new(1),
+            data: value,
+        };
+
+        let sharedbx = Box::new(shareddata);
+
+        SharedTrc {
+            data: NonNull::from(Box::leak(sharedbx)),
+        }
+    }
+
+    /// Creates a new uninitialized `SharedTrc`.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::SharedTrc;
+    /// use trc::Trc;
+    /// use std::mem::MaybeUninit;
+    ///
+    /// let mut trc: Trc<MaybeUninit<i32>> = SharedTrc::new_uninit().into();
+    ///
+    /// Trc::<MaybeUninit<i32>>::get_mut(&mut trc).unwrap().write(5);
+    ///
+    /// let trc: SharedTrc<MaybeUninit<i32>> = trc.into();
+    /// let five = unsafe { trc.assume_init() };
+    ///
+    /// assert_eq!(*five, 5);
+    /// ```
+    #[inline]
+    pub fn new_uninit() -> SharedTrc<MaybeUninit<T>> {
+        let shareddata = SharedTrcInternal {
+            atomicref: AtomicUsize::new(1),
+            weakcount: AtomicUsize::new(1),
+            data: MaybeUninit::<T>::uninit(),
+        };
+
+        let sharedbx = Box::new(shareddata);
+
+        SharedTrc {
+            data: NonNull::from(Box::leak(sharedbx)),
+        }
+    }
+
+    /// Creates a new cyclic `SharedTrc` from the provided data. It allows the storage of `Weak` which points the the allocation
+    /// of `SharedTrc`inside of `T`. Holding a `SharedTrc` inside of `T` would cause a memory leak. This method works around this by
+    /// providing a `Weak` during the construction of the `SharedTrc`, so that the `T` can store the `Weak` internally.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::Weak;
+    ///
+    /// struct T(Weak<T>);
+    ///
+    /// let trc = Trc::new_cyclic(|x| T(x.clone()));
+    /// ```
+    #[inline]
+    pub fn new_cyclic<F>(data_fn: F) -> Self
+    where
+        F: FnOnce(&Weak<T>) -> T,
+    {
+        let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrcInternal {
+            atomicref: AtomicUsize::new(0),
+            weakcount: AtomicUsize::new(1),
+            data: MaybeUninit::<T>::uninit(),
+        }))
+        .into();
+
+        let init_ptr: NonNull<SharedTrcInternal<T>> = shareddata.cast();
+
+        let weak: Weak<T> = Weak { data: init_ptr };
+        let data = data_fn(&weak);
+        forget(weak);
+
+        unsafe {
+            let ptr = init_ptr.as_ptr();
+            ptr::write(ptr::addr_of_mut!((*ptr).data), data);
+
+            let prev = sum_value(&init_ptr.as_ref().atomicref, 1, AcqRel);
+            if prev > MAX_REFCOUNT {
+                panic!("Overflow of maximum atomic reference count.");
+            }
+        }
+
+        SharedTrc { data: init_ptr }
+    }
     /// Converts a `*const T` into `SharedTrc`. The caller must uphold the below safety constraints.
     ///
     /// # Safety
@@ -634,6 +738,110 @@ impl<T> SharedTrc<T> {
     pub unsafe fn increment_local_count(ptr: *const T) {
         let trc = ManuallyDrop::new(SharedTrc::from_raw(ptr));
         let _: ManuallyDrop<_> = trc.clone();
+    }
+}
+
+impl<T> SharedTrc<[T]> {
+    /// Constructs a new `SharedTrc` slice with uninitialized contents.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::SharedTrc;
+    /// use trc::Trc;
+    ///
+    /// let mut values = Trc::<[u32]>::new_uninit_slice(3);
+    ///
+    /// // Deferred initialization:
+    /// let data = Trc::get_mut(&mut values).unwrap();
+    /// data[0].write(1);
+    /// data[1].write(2);
+    /// data[2].write(3);
+    ///
+    /// let values = unsafe { values.assume_init() };
+    ///
+    /// assert_eq!(*values, [1, 2, 3])
+    /// ```
+    pub fn new_uninit_slice(len: usize) -> SharedTrc<[MaybeUninit<T>]> {
+        let value_layout = Layout::array::<T>(len).unwrap();
+        let layout = Layout::new::<SharedTrcInternal<()>>()
+            .extend(value_layout)
+            .unwrap()
+            .0
+            .pad_to_align();
+
+        let res = slice_from_raw_parts_mut(unsafe { alloc(layout) } as *mut T, len)
+            as *mut SharedTrcInternal<[MaybeUninit<T>]>;
+        unsafe { write(&mut (*res).atomicref, AtomicUsize::new(1)) };
+        unsafe { write(&mut (*res).weakcount, AtomicUsize::new(1)) };
+
+        let elems = unsafe { addr_of_mut!((*res).data) } as *mut MaybeUninit<T>;
+        for i in 0..len {
+            unsafe { write(elems.add(i), MaybeUninit::<T>::uninit()) };
+        }
+
+        SharedTrc {
+            data: unsafe { NonNull::new_unchecked(res) },
+        }
+    }
+}
+
+impl<T> SharedTrc<MaybeUninit<T>> {
+    /// Assume that `SharedTrc<MaybeUninit<T>>` is initialized, converting it to `SharedTrc<T>`.
+    ///
+    /// # Safety
+    /// As with `MaybeUninit::assume_init`, it is up to the caller to guarantee that the inner value really is in an initialized state.
+    /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    /// use std::mem::MaybeUninit;
+    ///
+    /// let mut trc: Trc<MaybeUninit<i32>> = SharedTrc::new_uninit().into();
+    ///
+    /// Trc::<MaybeUninit<i32>>::get_mut(&mut trc).unwrap().write(5);
+    ///
+    /// let five = unsafe { trc.assume_init() };
+    ///
+    /// assert_eq!(*five, 5);
+    /// ```
+    pub unsafe fn assume_init(self) -> SharedTrc<T> {
+        SharedTrc {
+            data: NonNull::new_unchecked(ManuallyDrop::new(self).data.as_ptr().cast()),
+        }
+    }
+}
+
+impl<T> SharedTrc<[MaybeUninit<T>]> {
+    /// Assume that all elements in `SharedTrc<[MaybeUninit<T>]>` are initialized, converting it to `SharedTrc<[T]>`.
+    ///
+    /// # Safety
+    /// As with `MaybeUninit::assume_init`, it is up to the caller to guarantee that the inner value really is in an initialized state.
+    /// Calling this when the content is not yet fully initialized causes immediate undefined behavior.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    /// use trc::SharedTrc;
+    /// use std::mem::MaybeUninit;
+    ///
+    /// let mut values: Trc<[MaybeUninit<u32>]> = SharedTrc::<[u32]>::new_uninit_slice(3).into();
+    ///
+    /// // Deferred initialization:
+    /// let data = Trc::get_mut(&mut values).unwrap();
+    /// data[0].write(1);
+    /// data[1].write(2);
+    /// data[2].write(3);
+    ///
+    /// let values = unsafe { SharedTrc::from_trc(&values).assume_init() };
+    ///
+    /// assert_eq!(*values, [1, 2, 3])
+    /// ```
+    pub unsafe fn assume_init(self) -> SharedTrc<[T]> {
+        SharedTrc {
+            data: NonNull::new_unchecked(ManuallyDrop::new(self).data.as_ptr() as _),
+        }
     }
 }
 
@@ -951,17 +1159,13 @@ impl<T> Trc<MaybeUninit<T>> {
     /// ```
     /// use trc::Trc;
     ///
-    /// let mut values = Trc::<[u32]>::new_uninit_slice(3);
+    /// let mut trc = Trc::new_uninit();
     ///
-    /// // Deferred initialization:
-    /// let data = Trc::get_mut(&mut values).unwrap();
-    /// data[0].write(1);
-    /// data[1].write(2);
-    /// data[2].write(3);
+    /// Trc::get_mut(&mut trc).unwrap().write(5);
     ///
-    /// let values = unsafe { values.assume_init() };
+    /// let five = unsafe { trc.assume_init() };
     ///
-    /// assert_eq!(*values, [1, 2, 3])
+    /// assert_eq!(*five, 5);
     /// ```
     pub unsafe fn assume_init(self) -> Trc<T> {
         let threadref = self.threadref;
@@ -1811,6 +2015,56 @@ impl<T: Error> Error for SharedTrc<T> {
         (**self).source()
     }
 }
+
+#[cfg(feature = "serde")]
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for Trc<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Trc<T>, D::Error>
+    where
+        D: ::serde::de::Deserializer<'de>,
+    {
+        T::deserialize(deserializer).map(Trc::new)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T: Serialize> Serialize for Trc<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ::serde::ser::Serializer,
+    {
+        (**self).serialize(serializer)
+    }
+}
+
+#[cfg(feature = "stable_deref_trait")]
+unsafe impl<T: ?Sized> StableDeref for Trc<T> {}
+#[cfg(feature = "stable_deref_trait")]
+unsafe impl<T: ?Sized> CloneStableDeref for Trc<T> {}
+
+#[cfg(feature = "serde")]
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for SharedTrc<T> {
+    fn deserialize<D>(deserializer: D) -> Result<SharedTrc<T>, D::Error>
+    where
+        D: ::serde::de::Deserializer<'de>,
+    {
+        T::deserialize(deserializer).map(|x| SharedTrc::from_trc(&Trc::new(x)))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T: Serialize> Serialize for SharedTrc<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ::serde::ser::Serializer,
+    {
+        (**self).serialize(serializer)
+    }
+}
+
+#[cfg(feature = "stable_deref_trait")]
+unsafe impl<T: ?Sized> StableDeref for SharedTrc<T> {}
+#[cfg(feature = "stable_deref_trait")]
+unsafe impl<T: ?Sized> CloneStableDeref for SharedTrc<T> {}
 
 impl<T: ?Sized> Unpin for Trc<T> {}
 impl<T: ?Sized> UnwindSafe for Trc<T> {}

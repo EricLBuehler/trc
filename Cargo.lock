@@ -452,6 +452,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "stable_deref_trait"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
+
+[[package]]
 name = "syn"
 version = "2.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -477,6 +483,8 @@ name = "trc"
 version = "1.2.3"
 dependencies = [
  "criterion",
+ "serde",
+ "stable_deref_trait",
 ]
 
 [[package]]

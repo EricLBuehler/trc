@@ -16,8 +16,13 @@ criterion = "0.5.1"
 
 [features]
 dyn_unstable = []
-immortals = []
+serde = []
+stable_deref_trait = []
 
 [[bench]]
 name = "benchmark"
 harness = false
+
+[dependencies]
+serde = "1.0.189"
+stable_deref_trait = "1.2.0"
