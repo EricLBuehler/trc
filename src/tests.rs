@@ -374,3 +374,10 @@ fn test_ex4() {
     handle.join().unwrap();
     assert_eq!(*trc, 100);
 }
+
+#[test]
+fn test_to_box() {
+    let trc = Trc::new(123);
+    let boxed = Trc::to_box(trc);
+    assert!(boxed.is_some());
+}

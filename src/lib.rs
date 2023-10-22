@@ -50,7 +50,7 @@ use std::{
 use std::os::fd::{AsFd, AsRawFd};
 
 #[cfg(target_os = "windows")]
-use std::os::windows::io::{AsRawHandle, AsRawSocket, AsHandle, AsSocket};
+use std::os::windows::io::{AsHandle, AsRawHandle, AsRawSocket, AsSocket};
 
 #[cfg(feature = "dyn_unstable")]
 use std::any::Any;
@@ -901,6 +901,69 @@ impl<T> Trc<T> {
 
         Some(elem)
     }
+
+    /// Convert to a [`Box`] if there are no other `Trc`, [`SharedTrc`] or [`Weak`] pointers to the same allocation.
+    /// Otherwise, return [`None`] because it would be unsafe to move a shared value.
+    ///
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let mut trc = Trc::new(100);
+    /// let boxed = Trc::to_box(trc).unwrap();
+    /// assert_eq!(*boxed, 100);
+    /// ```
+    #[inline]
+    pub fn to_box(this: Self) -> Option<Box<T>> {
+        //Acquire the weakcount if it is == 1
+        if unsafe { this.shared.as_ref() }
+            .weakcount
+            .compare_exchange(
+                1,
+                usize::MAX,
+                core::sync::atomic::Ordering::Acquire,
+                core::sync::atomic::Ordering::Relaxed,
+            )
+            .is_ok()
+        {
+            //Acquire the atomicref
+            let unique = unsafe { this.shared.as_ref() }
+                .atomicref
+                .load(core::sync::atomic::Ordering::Acquire)
+                == 1;
+
+            //Synchronize with the previous Acquire
+            unsafe { this.shared.as_ref() }
+                .weakcount
+                .store(1, core::sync::atomic::Ordering::Release);
+
+            if unique && *unsafe { this.threadref.as_ref() } == 1 {
+                let SharedTrcInternal {
+                    atomicref: _,
+                    weakcount: _,
+                    data,
+                } = unsafe { core::ptr::read(this.shared.as_ptr()) }; //Unsafety is OK as we have the only ref now
+
+                // Dropping
+                drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
+
+                core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+                unsafe { core::ptr::drop_in_place(addr_of_mut!((*this.shared.as_ptr()).data)) };
+
+                // Drop & free shared, effectively like the weak dropping.
+                let layout = Layout::for_value(unsafe { &*this.shared.as_ptr() });
+                unsafe { std::alloc::dealloc(this.shared.as_ptr().cast(), layout) };
+
+                std::mem::forget(this);
+
+                Some(Box::new(data))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 impl<T> Trc<[T]> {
@@ -1100,7 +1163,7 @@ impl<T: ?Sized> Trc<T> {
         unsafe { addr_of_mut!((*sharedptr).data) }
     }
 
-    /// Get a &mut reference to the internal data if there are no other `Trc` or [`Weak`] pointers to the same allocation.
+    /// Get a &mut reference to the internal data if there are no other `Trc`, [`SharedTrc`] or [`Weak`] pointers to the same allocation.
     /// Otherwise, return [`None`] because it would be unsafe to mutate a shared value.
     ///
     /// # Examples
@@ -1937,8 +2000,8 @@ impl<T: ?Sized> Drop for Weak<T> {
 }
 
 impl<T: ?Sized> Weak<T> {
-    /// Upgrade a `Weak` to a `Trc`. Because `Weak<` does not own the value, it may have been dropped already. If it has, a `None` is returned.
-    /// If the value has not been dropped, then this function a) decrements the weak count, and b) increments the atomic reference count of the object.
+    /// Upgrade a `Weak` to a `Trc`. Because `Weak` does not own the value, it may have been dropped already. If it has, a `None` is returned.
+    /// If the value has not been dropped, then this function increments the atomic reference count of the object.
     ///
     /// # Examples
     /// ```
@@ -1963,7 +2026,7 @@ impl<T: ?Sized> Weak<T> {
                     if n == 0 {
                         return None;
                     }
-                    // See comments in `Arc::clone` for why we do this (for `mem::forget`).
+                    // See comments in `Trc::clone` for why we do this (for `mem::forget`).
                     assert!(
                         n <= MAX_REFCOUNT,
                         "Overflow of maximum atomic reference count."
