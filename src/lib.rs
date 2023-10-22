@@ -36,14 +36,19 @@ compile_error!("Cannot use `Trc` on a system without atomics.");
 use std::{
     alloc::{alloc, Layout},
     borrow::Borrow,
+    cmp,
     error::Error,
-    fmt::{Debug, Display, Pointer},
+    fmt::{self, Debug, Display, Pointer},
     hash::{Hash, Hasher},
     mem::{forget, ManuallyDrop, MaybeUninit},
     ops::Deref,
     panic::UnwindSafe,
     pin::Pin,
     ptr::{self, addr_of, addr_of_mut, slice_from_raw_parts_mut, write, NonNull},
+    sync::atomic::{
+        fence, AtomicUsize,
+        Ordering::{self, AcqRel, Acquire, Relaxed, Release},
+    },
 };
 
 #[cfg(not(target_os = "windows"))]
@@ -54,8 +59,6 @@ use std::os::windows::io::{AsHandle, AsRawHandle, AsRawSocket, AsSocket};
 
 #[cfg(feature = "dyn_unstable")]
 use std::any::Any;
-
-use core::sync::atomic::AtomicUsize;
 
 const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 
@@ -252,11 +255,7 @@ impl<T: ?Sized> SharedTrc<T> {
     /// ```
     #[inline]
     pub fn from_trc(trc: &Trc<T>) -> Self {
-        let prev = sum_value(
-            &unsafe { trc.shared.as_ref() }.atomicref,
-            1,
-            core::sync::atomic::Ordering::Acquire,
-        );
+        let prev = sum_value(&unsafe { trc.shared.as_ref() }.atomicref, 1, Acquire);
         if prev > MAX_REFCOUNT {
             panic!("Overflow of maximum atomic reference count.");
         }
@@ -283,7 +282,7 @@ impl<T: ?Sized> SharedTrc<T> {
             threadref: NonNull::from(Box::leak(tbx)),
             shared: this.data,
         };
-        core::mem::forget(this);
+        forget(this);
         res
     }
 
@@ -308,9 +307,7 @@ impl<T: ?Sized> SharedTrc<T> {
     /// ```
     #[inline]
     pub fn atomic_count(this: &Self) -> usize {
-        unsafe { this.data.as_ref() }
-            .atomicref
-            .load(core::sync::atomic::Ordering::Relaxed)
+        unsafe { this.data.as_ref() }.atomicref.load(Relaxed)
     }
 }
 
@@ -365,11 +362,7 @@ impl<T: ?Sized> Clone for SharedTrc<T> {
     /// ```
     #[inline]
     fn clone(&self) -> Self {
-        let prev = sum_value(
-            &unsafe { self.data.as_ref() }.atomicref,
-            1,
-            core::sync::atomic::Ordering::AcqRel,
-        );
+        let prev = sum_value(&unsafe { self.data.as_ref() }.atomicref, 1, AcqRel);
         if prev > MAX_REFCOUNT {
             panic!("Overflow of maximum atomic reference count.");
         }
@@ -380,20 +373,14 @@ impl<T: ?Sized> Clone for SharedTrc<T> {
 impl<T: ?Sized> Drop for SharedTrc<T> {
     #[inline]
     fn drop(&mut self) {
-        if sub_value(
-            unsafe { &(*self.data.as_ptr()).atomicref },
-            1,
-            core::sync::atomic::Ordering::Release,
-        ) != 1
-        {
+        if sub_value(unsafe { &(*self.data.as_ptr()).atomicref }, 1, Release) != 1 {
             return;
         }
 
-        let weak =
-            unsafe { &(*self.data.as_ptr()).weakcount }.load(core::sync::atomic::Ordering::Acquire);
+        let weak = unsafe { &(*self.data.as_ptr()).weakcount }.load(Acquire);
         if weak == 1 {
-            core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
-            unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.data.as_ptr()).data)) };
+            fence(Acquire);
+            unsafe { ptr::drop_in_place(addr_of_mut!((*self.data.as_ptr()).data)) };
             Weak { data: self.data };
         }
     }
@@ -475,9 +462,7 @@ impl<T: ?Sized> SharedTrc<T> {
     /// ```
     #[inline]
     pub fn weak_count(this: &Self) -> usize {
-        unsafe { this.data.as_ref() }
-            .weakcount
-            .load(core::sync::atomic::Ordering::Relaxed)
+        unsafe { this.data.as_ref() }.weakcount.load(Relaxed)
     }
 
     /// Checks if the other `SharedTrc` is equal to this one according to their internal pointers.
@@ -669,9 +654,9 @@ impl<T: ?Sized> Deref for SharedTrc<T> {
 }
 
 #[inline(always)]
-fn sum_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::Ordering) -> usize {
+fn sum_value(value: &AtomicUsize, offset: usize, ordering: Ordering) -> usize {
     #[cfg(immortals)]
-    if value.load(core::sync::atomic::Ordering::Acquire) != usize::MAX {
+    if value.load(Acquire) != usize::MAX {
         value.fetch_add(offset, ordering)
     } else {
         usize::MAX
@@ -682,9 +667,9 @@ fn sum_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::O
 }
 
 #[inline(always)]
-fn sub_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::Ordering) -> usize {
+fn sub_value(value: &AtomicUsize, offset: usize, ordering: Ordering) -> usize {
     #[cfg(immortals)]
-    if value.load(core::sync::atomic::Ordering::Acquire) != usize::MAX {
+    if value.load(Acquire) != usize::MAX {
         value.fetch_sub(offset, ordering)
     } else {
         usize::MAX
@@ -775,7 +760,7 @@ impl<T> Trc<T> {
         let shareddata: NonNull<_> = Box::leak(Box::new(SharedTrcInternal {
             atomicref: AtomicUsize::new(0),
             weakcount: AtomicUsize::new(1),
-            data: core::mem::MaybeUninit::<T>::uninit(),
+            data: MaybeUninit::<T>::uninit(),
         }))
         .into();
 
@@ -783,17 +768,13 @@ impl<T> Trc<T> {
 
         let weak: Weak<T> = Weak { data: init_ptr };
         let data = data_fn(&weak);
-        core::mem::forget(weak);
+        forget(weak);
 
         unsafe {
             let ptr = init_ptr.as_ptr();
-            core::ptr::write(core::ptr::addr_of_mut!((*ptr).data), data);
+            ptr::write(ptr::addr_of_mut!((*ptr).data), data);
 
-            let prev = sum_value(
-                &init_ptr.as_ref().atomicref,
-                1,
-                core::sync::atomic::Ordering::AcqRel,
-            );
+            let prev = sum_value(&init_ptr.as_ref().atomicref, 1, AcqRel);
             if prev > MAX_REFCOUNT {
                 panic!("Overflow of maximum atomic reference count.");
             }
@@ -838,17 +819,14 @@ impl<T> Trc<T> {
     /// ```
     #[inline]
     pub fn try_unwrap(mut this: Self) -> Result<T, Self> {
-        if unsafe { this.shared.as_ref() }
-            .atomicref
-            .load(core::sync::atomic::Ordering::Acquire)
-            != 1
+        if unsafe { this.shared.as_ref() }.atomicref.load(Acquire) != 1
             || *unsafe { this.threadref.as_ref() } != 1
         {
             return Err(this);
         }
         *unsafe { this.threadref.as_mut() } -= 1;
 
-        core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+        fence(Acquire);
 
         unsafe {
             let elem = ptr::read(&this.shared.as_ref().data);
@@ -856,7 +834,7 @@ impl<T> Trc<T> {
 
             //Clean up implicit self-reference
             drop(Weak { data: this.shared });
-            core::mem::forget(this);
+            forget(this);
 
             Ok(elem)
         }
@@ -895,22 +873,18 @@ impl<T> Trc<T> {
     ///
     #[inline]
     pub fn into_inner(this: Self) -> Option<T> {
-        let this = core::mem::ManuallyDrop::new(this);
+        let this = ManuallyDrop::new(this);
 
-        if sub_value(
-            &unsafe { this.shared.as_ref() }.atomicref,
-            1,
-            core::sync::atomic::Ordering::Release,
-        ) != 1
+        if sub_value(&unsafe { this.shared.as_ref() }.atomicref, 1, Release) != 1
             || *unsafe { this.threadref.as_ref() } != 1
         {
             drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
             return None;
         }
 
-        core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+        fence(Acquire);
 
-        let elem = unsafe { core::ptr::read(addr_of_mut!((*this.shared.as_ptr()).data)) };
+        let elem = unsafe { ptr::read(addr_of_mut!((*this.shared.as_ptr()).data)) };
         drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
 
         //Clean up implicit self-reference
@@ -935,36 +909,26 @@ impl<T> Trc<T> {
         //Acquire the weakcount if it is == 1
         if unsafe { this.shared.as_ref() }
             .weakcount
-            .compare_exchange(
-                1,
-                usize::MAX,
-                core::sync::atomic::Ordering::Acquire,
-                core::sync::atomic::Ordering::Relaxed,
-            )
+            .compare_exchange(1, usize::MAX, Acquire, Relaxed)
             .is_ok()
         {
             //Acquire the atomicref
-            let unique = unsafe { this.shared.as_ref() }
-                .atomicref
-                .load(core::sync::atomic::Ordering::Acquire)
-                == 1;
+            let unique = unsafe { this.shared.as_ref() }.atomicref.load(Acquire) == 1;
 
             //Synchronize with the previous Acquire
-            unsafe { this.shared.as_ref() }
-                .weakcount
-                .store(1, core::sync::atomic::Ordering::Release);
+            unsafe { this.shared.as_ref() }.weakcount.store(1, Release);
 
             if unique && *unsafe { this.threadref.as_ref() } == 1 {
                 let SharedTrcInternal {
                     atomicref: _,
                     weakcount: _,
                     data,
-                } = unsafe { core::ptr::read(this.shared.as_ptr()) }; //Unsafety is OK as we have the only ref now
+                } = unsafe { ptr::read(this.shared.as_ptr()) }; //Unsafety is OK as we have the only ref now
 
                 // Dropping
                 drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
 
-                core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+                fence(Acquire);
 
                 // Drop & free shared, effectively like the weak dropping.
                 let layout = Layout::for_value(unsafe { &*this.shared.as_ptr() });
@@ -1122,9 +1086,7 @@ impl<T: ?Sized> Trc<T> {
     /// ```
     #[inline]
     pub fn atomic_count(this: &Self) -> usize {
-        unsafe { this.shared.as_ref() }
-            .atomicref
-            .load(core::sync::atomic::Ordering::Relaxed)
+        unsafe { this.shared.as_ref() }.atomicref.load(Relaxed)
     }
 
     /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of `Trc`.
@@ -1144,9 +1106,7 @@ impl<T: ?Sized> Trc<T> {
     /// ```
     #[inline]
     pub fn weak_count(this: &Self) -> usize {
-        unsafe { this.shared.as_ref() }
-            .weakcount
-            .load(core::sync::atomic::Ordering::Relaxed)
+        unsafe { this.shared.as_ref() }.weakcount.load(Relaxed)
     }
 
     /// Checks if the other `Trc` is equal to this one according to their internal pointers.
@@ -1197,24 +1157,14 @@ impl<T: ?Sized> Trc<T> {
         //Acquire the weakcount if it is == 1
         if unsafe { this.shared.as_ref() }
             .weakcount
-            .compare_exchange(
-                1,
-                usize::MAX,
-                core::sync::atomic::Ordering::Acquire,
-                core::sync::atomic::Ordering::Relaxed,
-            )
+            .compare_exchange(1, usize::MAX, Acquire, Relaxed)
             .is_ok()
         {
             //Acquire the atomicref
-            let unique = unsafe { this.shared.as_ref() }
-                .atomicref
-                .load(core::sync::atomic::Ordering::Acquire)
-                == 1;
+            let unique = unsafe { this.shared.as_ref() }.atomicref.load(Acquire) == 1;
 
             //Synchronize with the previous Acquire
-            unsafe { this.shared.as_ref() }
-                .weakcount
-                .store(1, core::sync::atomic::Ordering::Release);
+            unsafe { this.shared.as_ref() }.weakcount.store(1, Release);
 
             if unique && *unsafe { this.threadref.as_ref() } == 1 {
                 Some(unsafe { &mut (*this.shared.as_ptr()).data })
@@ -1300,11 +1250,7 @@ impl<T: ?Sized> Trc<T> {
     /// ```
     #[inline]
     pub fn downgrade(trc: &Trc<T>) -> Weak<T> {
-        let prev = sum_value(
-            &unsafe { trc.shared.as_ref() }.weakcount,
-            1,
-            core::sync::atomic::Ordering::Acquire,
-        );
+        let prev = sum_value(&unsafe { trc.shared.as_ref() }.weakcount, 1, Acquire);
         if prev > MAX_REFCOUNT {
             panic!("Overflow of maximum weak reference count.");
         }
@@ -1336,26 +1282,17 @@ impl<T: ?Sized> Drop for Trc<T> {
     #[cfg(immortals)]
     #[inline]
     fn drop(&mut self) {
-        if unsafe { self.shared.as_ref() }
-            .atomicref
-            .load(core::sync::atomic::Ordering::Acquire)
-            != usize::MAX
-        {
+        if unsafe { self.shared.as_ref() }.atomicref.load(Acquire) != usize::MAX {
             //If it is not immortal
             *unsafe { self.threadref.as_mut() } -= 1;
             if *unsafe { self.threadref.as_ref() } == 0 {
                 drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
-                if sub_value(
-                    &unsafe { self.shared.as_ref() }.atomicref,
-                    1,
-                    core::sync::atomic::Ordering::Release,
-                ) != 1
-                {
+                if sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1, Release) != 1 {
                     return;
                 }
 
-                core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
-                unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
+                sync::atomic::fence(Acquire);
+                unsafe { ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
                 Weak { data: self.shared };
             }
         }
@@ -1367,17 +1304,12 @@ impl<T: ?Sized> Drop for Trc<T> {
         *unsafe { self.threadref.as_mut() } -= 1;
         if *unsafe { self.threadref.as_ref() } == 0 {
             drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
-            if sub_value(
-                &unsafe { self.shared.as_ref() }.atomicref,
-                1,
-                core::sync::atomic::Ordering::Release,
-            ) != 1
-            {
+            if sub_value(&unsafe { self.shared.as_ref() }.atomicref, 1, Release) != 1 {
                 return;
             }
 
-            core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
-            unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
+            fence(Acquire);
+            unsafe { ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
             Weak { data: self.shared };
         }
     }
@@ -1396,7 +1328,7 @@ impl<T: ?Sized> Clone for Trc<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
         #[cfg(immortals)]
-        if value.load(core::sync::atomic::Ordering::Acquire) == usize::MAX {
+        if value.load(Acquire) == usize::MAX {
             //Is immortal
             return Trc {
                 shared: self.shared,
@@ -1453,38 +1385,38 @@ impl<T: ?Sized + Default> Default for SharedTrc<T> {
 }
 
 impl<T: Display> Display for Trc<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Display::fmt((*self).deref(), f)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt((*self).deref(), f)
     }
 }
 
 impl<T: Display> Display for SharedTrc<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Display::fmt((*self).deref(), f)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt((*self).deref(), f)
     }
 }
 
 impl<T: Debug> Debug for Trc<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Debug::fmt((*self).deref(), f)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt((*self).deref(), f)
     }
 }
 
 impl<T: Debug> Debug for SharedTrc<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Debug::fmt((*self).deref(), f)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt((*self).deref(), f)
     }
 }
 
 impl<T: ?Sized> Pointer for Trc<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Pointer::fmt(&addr_of!(unsafe { self.shared.as_ref() }.data), f)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&addr_of!(unsafe { self.shared.as_ref() }.data), f)
     }
 }
 
 impl<T: ?Sized> Pointer for SharedTrc<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Pointer::fmt(&addr_of!(unsafe { self.data.as_ref() }.data), f)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&addr_of!(unsafe { self.data.as_ref() }.data), f)
     }
 }
 
@@ -1602,7 +1534,7 @@ impl<T: PartialOrd> PartialOrd for Trc<T> {
     /// assert_eq!(Some(Ordering::Less), trc1.partial_cmp(&trc2));
     /// ```
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         self.deref().partial_cmp(other.deref())
     }
 }
@@ -1695,7 +1627,7 @@ impl<T: PartialOrd> PartialOrd for SharedTrc<T> {
     /// assert_eq!(Some(Ordering::Less), shared1.partial_cmp(&shared2));
     /// ```
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         self.deref().partial_cmp(other.deref())
     }
 }
@@ -1713,7 +1645,7 @@ impl<T: Ord> Ord for Trc<T> {
     /// assert_eq!(Ordering::Less, trc1.cmp(&trc2));
     /// ```
     #[inline]
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.deref().cmp(other.deref())
     }
 }
@@ -1732,7 +1664,7 @@ impl<T: Ord> Ord for SharedTrc<T> {
     /// assert_eq!(Ordering::Less, shared1.cmp(&shared2));
     /// ```
     #[inline]
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.deref().cmp(other.deref())
     }
 }
@@ -2028,7 +1960,7 @@ impl<T: ?Sized + std::marker::Unsize<U>, U: ?Sized> std::ops::CoerceUnsized<Shar
 impl<T: ?Sized> std::ops::Receiver for SharedTrc<T> {}
 
 #[cfg(feature = "dyn_unstable")]
-impl<T: ?Sized, U: ?Sized> core::ops::DispatchFromDyn<SharedTrc<U>> for SharedTrc<T> where
+impl<T: ?Sized, U: ?Sized> ops::DispatchFromDyn<SharedTrc<U>> for SharedTrc<T> where
     T: std::marker::Unsize<U>
 {
 }
@@ -2037,16 +1969,11 @@ impl<T: ?Sized, U: ?Sized> core::ops::DispatchFromDyn<SharedTrc<U>> for SharedTr
 impl<T: ?Sized> Drop for Weak<T> {
     #[inline]
     fn drop(&mut self) {
-        if sub_value(
-            unsafe { &(*self.data.as_ptr()).weakcount },
-            1,
-            core::sync::atomic::Ordering::Release,
-        ) != 1
-        {
+        if sub_value(unsafe { &(*self.data.as_ptr()).weakcount }, 1, Release) != 1 {
             return;
         }
 
-        core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+        fence(Acquire);
 
         let layout = Layout::for_value(unsafe { &*self.data.as_ptr() });
         unsafe { std::alloc::dealloc(self.data.as_ptr().cast(), layout) };
@@ -2070,7 +1997,7 @@ impl<T: ?Sized> Weak<T> {
     #[inline]
     pub fn upgrade(&self) -> Option<Trc<T>> {
         #[cfg(immortals)]
-        if value.load(core::sync::atomic::Ordering::Acquire) == usize::MAX {
+        if value.load(Acquire) == usize::MAX {
             //SAFETY: The data is guaranteed to not be dropped.
             let tbx = Box::new(1);
             Trc {
@@ -2078,25 +2005,21 @@ impl<T: ?Sized> Weak<T> {
                 shared: self.data,
             }
         }
-        
+
         unsafe { self.data.as_ref() }
             .atomicref
-            .fetch_update(
-                core::sync::atomic::Ordering::Acquire,
-                core::sync::atomic::Ordering::Relaxed,
-                |n| {
-                    // Any write of 0 we can observe leaves the field in permanently zero state.
-                    if n == 0 {
-                        return None;
-                    }
-                    // See comments in `Trc::clone` for why we do this (for `mem::forget`).
-                    assert!(
-                        n <= MAX_REFCOUNT,
-                        "Overflow of maximum atomic reference count."
-                    );
-                    Some(n + 1)
-                },
-            )
+            .fetch_update(Acquire, Relaxed, |n| {
+                // Any write of 0 we can observe leaves the field in permanently zero state.
+                if n == 0 {
+                    return None;
+                }
+                // See comments in `Trc::clone` for why we do this (for `mem::forget`).
+                assert!(
+                    n <= MAX_REFCOUNT,
+                    "Overflow of maximum atomic reference count."
+                );
+                Some(n + 1)
+            })
             .ok()
             .map(|_| {
                 let tbx = Box::new(1);
@@ -2249,9 +2172,7 @@ impl<T> Weak<T> {
     /// ```
     #[inline]
     pub fn atomic_count(this: &Self) -> usize {
-        unsafe { this.data.as_ref() }
-            .atomicref
-            .load(core::sync::atomic::Ordering::Relaxed)
+        unsafe { this.data.as_ref() }.atomicref.load(Relaxed)
     }
 
     /// Return the weak count of the object. This is how many weak counts - across all threads - are pointing to the allocation inside of the `Weak`.
@@ -2273,9 +2194,7 @@ impl<T> Weak<T> {
     /// ```
     #[inline]
     pub fn weak_count(this: &Self) -> usize {
-        unsafe { this.data.as_ref() }
-            .weakcount
-            .load(core::sync::atomic::Ordering::Relaxed)
+        unsafe { this.data.as_ref() }.weakcount.load(Relaxed)
     }
 }
 
@@ -2294,11 +2213,7 @@ impl<T: ?Sized> Clone for Weak<T> {
     /// ```
     #[inline]
     fn clone(&self) -> Self {
-        let prev = sum_value(
-            &unsafe { self.data.as_ref() }.weakcount,
-            1,
-            core::sync::atomic::Ordering::Relaxed,
-        );
+        let prev = sum_value(&unsafe { self.data.as_ref() }.weakcount, 1, Relaxed);
 
         //If an absurd number of threads are created, and then they are aborted before this, UB can
         //occur if the refcount wraps around.
