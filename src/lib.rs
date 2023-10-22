@@ -2052,6 +2052,16 @@ impl<T: ?Sized> Weak<T> {
     /// ```
     #[inline]
     pub fn upgrade(&self) -> Option<Trc<T>> {
+        #[cfg(immortals)]
+        if value.load(core::sync::atomic::Ordering::Acquire) == usize::MAX {
+            //SAFETY: The data is guaranteed to not be dropped.
+            let tbx = Box::new(1);
+            Trc {
+                threadref: NonNull::from(Box::leak(tbx)),
+                shared: self.data,
+            }
+        }
+        
         unsafe { self.data.as_ref() }
             .atomicref
             .fetch_update(
