@@ -16,6 +16,7 @@ criterion = "0.5.1"
 
 [features]
 dyn_unstable = []
+immortals = []
 
 [[bench]]
 name = "benchmark"

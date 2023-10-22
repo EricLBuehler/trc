@@ -50,7 +50,7 @@ use std::{
 use std::os::fd::{AsFd, AsRawFd};
 
 #[cfg(target_os = "windows")]
-use std::os::windows::io::{AsRawHandle, AsRawSocket, AsHandle, AsSocket};
+use std::os::windows::io::{AsHandle, AsRawHandle, AsRawSocket, AsSocket};
 
 #[cfg(feature = "dyn_unstable")]
 use std::any::Any;
@@ -670,11 +670,27 @@ impl<T: ?Sized> Deref for SharedTrc<T> {
 
 #[inline(always)]
 fn sum_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::Ordering) -> usize {
+    #[cfg(immortals)]
+    if value.load(core::sync::atomic::Ordering::Acquire) != usize::MAX {
+        value.fetch_add(offset, ordering)
+    } else {
+        usize::MAX
+    }
+
+    #[cfg(not(immortals))]
     value.fetch_add(offset, ordering)
 }
 
 #[inline(always)]
 fn sub_value(value: &AtomicUsize, offset: usize, ordering: core::sync::atomic::Ordering) -> usize {
+    #[cfg(immortals)]
+    if value.load(core::sync::atomic::Ordering::Acquire) != usize::MAX {
+        value.fetch_sub(offset, ordering)
+    } else {
+        usize::MAX
+    }
+
+    #[cfg(not(immortals))]
     value.fetch_sub(offset, ordering)
 }
 
@@ -772,6 +788,7 @@ impl<T> Trc<T> {
         unsafe {
             let ptr = init_ptr.as_ptr();
             core::ptr::write(core::ptr::addr_of_mut!((*ptr).data), data);
+
             let prev = sum_value(
                 &init_ptr.as_ref().atomicref,
                 1,
@@ -900,6 +917,16 @@ impl<T> Trc<T> {
         drop(Weak { data: this.shared });
 
         Some(elem)
+    }
+
+    pub fn create_immortal(self) -> Self {
+        unsafe { self.shared.as_ref() }
+            .atomicref
+            .store(usize::MAX, core::sync::atomic::Ordering::SeqCst);
+        unsafe { self.shared.as_ref() }
+            .weakcount
+            .store(usize::MAX, core::sync::atomic::Ordering::SeqCst);
+        self
     }
 }
 
@@ -1254,6 +1281,35 @@ impl<T: ?Sized> Deref for Trc<T> {
 }
 
 impl<T: ?Sized> Drop for Trc<T> {
+    #[cfg(immortals)]
+    #[inline]
+    fn drop(&mut self) {
+        if unsafe { self.shared.as_ref() }
+            .atomicref
+            .load(core::sync::atomic::Ordering::Acquire)
+            != usize::MAX
+        {
+            //If it is not immortal
+            *unsafe { self.threadref.as_mut() } -= 1;
+            if *unsafe { self.threadref.as_ref() } == 0 {
+                drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
+                if sub_value(
+                    &unsafe { self.shared.as_ref() }.atomicref,
+                    1,
+                    core::sync::atomic::Ordering::Release,
+                ) != 1
+                {
+                    return;
+                }
+
+                core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+                unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
+                Weak { data: self.shared };
+            }
+        }
+    }
+
+    #[cfg(not(immortals))]
     #[inline]
     fn drop(&mut self) {
         *unsafe { self.threadref.as_mut() } -= 1;
@@ -1937,8 +1993,8 @@ impl<T: ?Sized> Drop for Weak<T> {
 }
 
 impl<T: ?Sized> Weak<T> {
-    /// Upgrade a `Weak` to a `Trc`. Because `Weak<` does not own the value, it may have been dropped already. If it has, a `None` is returned.
-    /// If the value has not been dropped, then this function a) decrements the weak count, and b) increments the atomic reference count of the object.
+    /// Upgrade a `Weak` to a `Trc`. Because `Weak` does not own the value, it may have been dropped already. If it has, a `None` is returned.
+    /// If the value has not been dropped, then this function increments the atomic reference count of the object.
     ///
     /// # Examples
     /// ```
@@ -1948,7 +2004,6 @@ impl<T: ?Sized> Weak<T> {
     /// let trc = Trc::new(100i32);
     /// let weak = Trc::downgrade(&trc);
     /// let new_trc = weak.upgrade().expect("Value was dropped");
-    /// drop(weak);
     /// assert_eq!(*new_trc, 100i32);
     /// ```
     #[inline]
@@ -1963,7 +2018,7 @@ impl<T: ?Sized> Weak<T> {
                     if n == 0 {
                         return None;
                     }
-                    // See comments in `Arc::clone` for why we do this (for `mem::forget`).
+                    // See comments in `Trc::clone` for why we do this (for `mem::forget`).
                     assert!(
                         n <= MAX_REFCOUNT,
                         "Overflow of maximum atomic reference count."
