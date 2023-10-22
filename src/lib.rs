@@ -919,49 +919,67 @@ impl<T> Trc<T> {
         Some(elem)
     }
 
-    #[cfg(immortal)]
-    /// Create an immortal Trc. After this method call, no writes to any reference counts (local, shared, weak) will occur with the exception
-    /// of [`Weak::upgrade`]. This also means that any [`Drop`] invocations are ignored. To drop, see [`Trc::drop_immortal`]. It is imperative
-    /// to call this function to prevent a memory leak.
+    /// Convert to a [`Box`] if there are no other `Trc`, [`SharedTrc`] or [`Weak`] pointers to the same allocation.
+    /// Otherwise, return [`None`] because it would be unsafe to move a shared value.
     ///
-    /// Once an immortal object is created, no reference counts are tracked and so it is unsafe to convert to a mortal
-    /// Trc after this method call.
-    pub fn create_immortal(self) -> Self {
-        unsafe { self.shared.as_ref() }
-            .atomicref
-            .store(usize::MAX, core::sync::atomic::Ordering::SeqCst);
-        unsafe { self.shared.as_ref() }
+    /// # Examples
+    /// ```
+    /// use trc::Trc;
+    ///
+    /// let mut trc = Trc::new(100);
+    /// let boxed = Trc::to_box(trc).unwrap();
+    /// assert_eq!(*boxed, 100);
+    /// ```
+    #[inline]
+    pub fn to_box(this: Self) -> Option<Box<T>> {
+        //Acquire the weakcount if it is == 1
+        if unsafe { this.shared.as_ref() }
             .weakcount
-            .store(usize::MAX, core::sync::atomic::Ordering::SeqCst);
-        self
-    }
-
-    #[cfg(immortal)]
-    /// Drop an immortal Trc. This is a highly dangerous function as any other references being dropped after it is called
-    /// causes immediate UB.
-    ///
-    /// # Safety
-    /// - All references to the data held by this Trc (other Trc, SharedTrc, or Weak objects) must have std::mem:forget called
-    ///
-    /// # Panics
-    /// If this Trc is not immortal (it did not come from [`Trc::create_immortal`]).
-    pub unsafe fn drop_immortal(self) {
-        assert!(
-            unsafe { self.shared.as_ref() }
+            .compare_exchange(
+                1,
+                usize::MAX,
+                core::sync::atomic::Ordering::Acquire,
+                core::sync::atomic::Ordering::Relaxed,
+            )
+            .is_ok()
+        {
+            //Acquire the atomicref
+            let unique = unsafe { this.shared.as_ref() }
                 .atomicref
                 .load(core::sync::atomic::Ordering::Acquire)
-                == usize::MAX
-        );
-        drop(unsafe { Box::from_raw(self.threadref.as_ptr()) });
+                == 1;
 
-        core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
-        unsafe { core::ptr::drop_in_place(addr_of_mut!((*self.shared.as_ptr()).data)) };
+            //Synchronize with the previous Acquire
+            unsafe { this.shared.as_ref() }
+                .weakcount
+                .store(1, core::sync::atomic::Ordering::Release);
 
-        //Drop & free shared, effectively like the weak dropping.
-        let layout = Layout::for_value(unsafe { &*self.shared.as_ptr() });
-        unsafe { std::alloc::dealloc(self.shared.as_ptr().cast(), layout) };
+            if unique && *unsafe { this.threadref.as_ref() } == 1 {
+                let SharedTrcInternal {
+                    atomicref: _,
+                    weakcount: _,
+                    data,
+                } = unsafe { core::ptr::read(this.shared.as_ptr()) }; //Unsafety is OK as we have the only ref now
 
-        std::mem::forget(self);
+                // Dropping
+                drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
+
+                core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
+                unsafe { core::ptr::drop_in_place(addr_of_mut!((*this.shared.as_ptr()).data)) };
+
+                // Drop & free shared, effectively like the weak dropping.
+                let layout = Layout::for_value(unsafe { &*this.shared.as_ptr() });
+                unsafe { std::alloc::dealloc(this.shared.as_ptr().cast(), layout) };
+
+                std::mem::forget(this);
+
+                Some(Box::new(data))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -1162,7 +1180,7 @@ impl<T: ?Sized> Trc<T> {
         unsafe { addr_of_mut!((*sharedptr).data) }
     }
 
-    /// Get a &mut reference to the internal data if there are no other `Trc` or [`Weak`] pointers to the same allocation.
+    /// Get a &mut reference to the internal data if there are no other `Trc`, [`SharedTrc`] or [`Weak`] pointers to the same allocation.
     /// Otherwise, return [`None`] because it would be unsafe to mutate a shared value.
     ///
     /// # Examples

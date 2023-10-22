@@ -375,13 +375,9 @@ fn test_ex4() {
     assert_eq!(*trc, 100);
 }
 
-#[cfg(immortal)]
 #[test]
-fn test_immortal_trc() {
-    let trc = Trc::new(()).create_immortal();
-    let trc2 = trc.clone();
-    assert_eq!(Trc::atomic_count(&trc), usize::MAX);
-    assert_eq!(Trc::atomic_count(&trc2), usize::MAX);
-    drop(trc2);
-    unsafe { Trc::drop_immortal(trc) };
+fn test_to_box() {
+    let trc = Trc::new(123);
+    let boxed = Trc::to_box(trc);
+    assert!(boxed.is_some());
 }
