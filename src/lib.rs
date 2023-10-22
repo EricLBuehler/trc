@@ -21,6 +21,11 @@
 //! However, `Trc` provides `dyn_unstable` trait which enables the above traits for
 //! `Trc` and `SharedTrc` and must be used with nightly Rust (`cargo +nightly ...`).
 
+#![deny(clippy::all)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::restriction)]
+#![warn(clippy::nursery)]
+#![warn(clippy::cargo)]
 #![cfg_attr(feature = "dyn_unstable", feature(unsize))]
 #![cfg_attr(feature = "dyn_unstable", feature(coerce_unsized))]
 #![cfg_attr(feature = "dyn_unstable", feature(receiver_trait))]
@@ -697,13 +702,13 @@ impl<T> Trc<T> {
             data: value,
         };
 
-        let sbx = Box::new(shareddata);
+        let sharedbx = Box::new(shareddata);
 
-        let tbx = Box::new(1);
+        let threadbx = Box::new(1);
 
         Trc {
-            threadref: NonNull::from(Box::leak(tbx)),
-            shared: NonNull::from(Box::leak(sbx)),
+            threadref: NonNull::from(Box::leak(threadbx)),
+            shared: NonNull::from(Box::leak(sharedbx)),
         }
     }
 
@@ -729,13 +734,13 @@ impl<T> Trc<T> {
             data: MaybeUninit::<T>::uninit(),
         };
 
-        let sbx = Box::new(shareddata);
+        let sharedbx = Box::new(shareddata);
 
-        let tbx = Box::new(1);
+        let threadbx = Box::new(1);
 
         Trc {
-            threadref: NonNull::from(Box::leak(tbx)),
-            shared: NonNull::from(Box::leak(sbx)),
+            threadref: NonNull::from(Box::leak(threadbx)),
+            shared: NonNull::from(Box::leak(sharedbx)),
         }
     }
 
@@ -919,11 +924,7 @@ impl<T> Trc<T> {
             unsafe { this.shared.as_ref() }.weakcount.store(1, Release);
 
             if unique && *unsafe { this.threadref.as_ref() } == 1 {
-                let SharedTrcInternal {
-                    atomicref: _,
-                    weakcount: _,
-                    data,
-                } = unsafe { ptr::read(this.shared.as_ptr()) }; //Unsafety is OK as we have the only ref now
+                let SharedTrcInternal { data, .. } = unsafe { ptr::read(this.shared.as_ptr()) }; //Unsafety is OK as we have the only ref now
 
                 // Dropping
                 drop(unsafe { Box::from_raw(this.threadref.as_ptr()) });
