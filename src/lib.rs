@@ -59,6 +59,8 @@ use std::os::windows::io::{AsHandle, AsRawHandle, AsRawSocket, AsSocket};
 
 #[cfg(feature = "dyn_unstable")]
 use std::any::Any;
+#[cfg(feature = "dyn_unstable")]
+use std::ops;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
