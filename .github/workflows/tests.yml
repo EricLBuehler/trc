@@ -47,14 +47,23 @@ jobs:
     - name: Miri with tree borrows (dyn_unstable)
       run: MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test --features dyn_unstable
       
-    - name: Test with Miri (immortals)
-      run: cargo +nightly miri test --features immortals
-    - name: Miri with strict provenance (immortals)
-      run: MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test --features immortals
-    - name: Miri with symbolic alignment check (immortals)
-      run: MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test --features immortals
-    - name: Miri with tree borrows (immortals)
-      run: MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test --features immortals
+    - name: Test with Miri (serde)
+      run: cargo +nightly miri test --features serde
+    - name: Miri with strict provenance (serde)
+      run: MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test --features serde
+    - name: Miri with symbolic alignment check (serde)
+      run: MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test --features serde
+    - name: Miri with tree borrows (serde)
+      run: MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test --features serde
+      
+    - name: Test with Miri (stable_deref_trait)
+      run: cargo +nightly miri test --features stable_deref_trait
+    - name: Miri with strict provenance (stable_deref_trait)
+      run: MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test --features stable_deref_trait
+    - name: Miri with symbolic alignment check (stable_deref_trait)
+      run: MIRIFLAGS="-Zmiri-symbolic-alignment-check" cargo +nightly miri test --features stable_deref_trait
+    - name: Miri with tree borrows (stable_deref_trait)
+      run: MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri test --features stable_deref_trait
 
   typos:
     runs-on: ubuntu-latest
