@@ -21,6 +21,11 @@ jobs:
       run: rustup toolchain install nightly
     - name: Test default (dyn_unstable)
       run: cargo +nightly test --features dyn_unstable
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4.0.1
+      env:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: EricLBuehler/trc
 
   miri:
     runs-on: ubuntu-latest
