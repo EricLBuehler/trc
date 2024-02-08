@@ -494,7 +494,7 @@ impl<T: ?Sized> SharedTrc<T> {
     #[inline]
     #[must_use]
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        this.data.as_ptr() == other.data.as_ptr()
+        std::ptr::eq(this.data.as_ptr(), other.data.as_ptr())
     }
 
     /// Gets the raw pointer to the most inner layer of `SharedTrc`.
@@ -1312,7 +1312,7 @@ impl<T: ?Sized> Trc<T> {
     #[inline]
     #[must_use]
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        this.shared.as_ptr() == other.shared.as_ptr()
+        std::ptr::eq(this.shared.as_ptr(), other.shared.as_ptr())
     }
 
     /// Gets the raw pointer to the most inner layer of `Trc`. This is only valid if there are at least some atomic references.
